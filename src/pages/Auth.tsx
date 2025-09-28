@@ -137,12 +137,10 @@ export default function Auth() {
       
       // Check if input is an email (contains @)
       if (!formData.username.includes('@')) {
-        // It's a username, need to find the email associated with this username
-        // Since profiles.username stores the actual username but we need the email for auth
-        // We need to get the user_id first, then find a way to get the email
+        // It's a username, look up the email from the profiles table
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('user_id')
+          .select('email')
           .eq('username', formData.username)
           .maybeSingle();
 
@@ -150,31 +148,11 @@ export default function Auth() {
           throw new Error('Error looking up user');
         }
         
-        if (!profile) {
+        if (!profile || !profile.email) {
           throw new Error('Username not found');
         }
 
-        // Since we can't directly query auth.users, we'll need to handle this differently
-        // The trigger creates profiles with username=email initially
-        // But users can change their username, so we need the original email
-        // For now, let's try a different approach - check if there's a profile with email as username
-        const { data: emailProfile, error: emailError } = await supabase
-          .from('profiles')
-          .select('username')  
-          .eq('user_id', profile.user_id)
-          .maybeSingle();
-
-        if (emailError || !emailProfile) {
-          throw new Error('Cannot find email for this username. Please sign in with your email address.');
-        }
-        
-        // Check if the username field contains an email (from the original trigger)
-        // If not, we can't proceed with username login
-        if (!emailProfile.username.includes('@')) {
-          throw new Error('Username login not available. Please sign in with your email address.');
-        }
-        
-        emailToUse = emailProfile.username;
+        emailToUse = profile.email;
       }
 
       const { error } = await supabase.auth.signInWithPassword({

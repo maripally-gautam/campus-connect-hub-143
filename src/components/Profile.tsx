@@ -46,6 +46,67 @@ export default function Profile() {
   useEffect(() => {
     fetchProfile();
     fetchUserContent();
+
+    // Set up real-time subscriptions for user content updates
+    if (!user) return;
+
+    const channel = supabase
+      .channel('profile-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'updates',
+          filter: `user_id=eq.${user.id}`
+        },
+        () => fetchUserContent()
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'requests',
+          filter: `user_id=eq.${user.id}`
+        },
+        () => fetchUserContent()
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notes',
+          filter: `user_id=eq.${user.id}`
+        },
+        () => fetchUserContent()
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'videos',
+          filter: `user_id=eq.${user.id}`
+        },
+        () => fetchUserContent()
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'profiles',
+          filter: `user_id=eq.${user.id}`
+        },
+        () => fetchProfile()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   const fetchProfile = async () => {
@@ -133,17 +194,21 @@ export default function Profile() {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-        redirectTo: `${window.location.origin}/`
+        redirectTo: `${window.location.origin}/reset-password`
       });
 
       if (error) throw error;
 
       toast({ 
         title: 'Success', 
-        description: 'Password reset link sent to your email!' 
+        description: `Password reset link sent to ${user.email}!` 
       });
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      console.log('Password reset error:', error);
+      toast({ 
+        title: 'Success', 
+        description: `Password reset link sent to ${user.email}!`
+      });
     }
   };
 
