@@ -61,7 +61,7 @@ export default function Requests() {
         .from('requests')
         .select(`
           *,
-          profiles(name, username)
+          profiles!requests_user_id_fkey(name, username)
         `)
         .order('created_at', { ascending: false });
 

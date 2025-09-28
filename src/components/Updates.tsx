@@ -61,7 +61,7 @@ export default function Updates() {
         .from('updates')
         .select(`
           *,
-          profiles(name, username)
+          profiles!updates_user_id_fkey(name, username)
         `)
         .order('created_at', { ascending: false });
 
