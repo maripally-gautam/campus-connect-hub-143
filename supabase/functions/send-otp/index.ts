@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0'
-import { Resend } from "npm:resend@2.0.0";
+import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -99,18 +99,29 @@ const handler = async (req: Request): Promise<Response> => {
       `
     };
 
-    // Send email using Resend
-    const resend = new Resend(Deno.env.get('RESEND_API_KEY'));
+    // Send email using SMTP
+    const client = new SMTPClient({
+      connection: {
+        hostname: Deno.env.get('SMTP_HOST')!,
+        port: parseInt(Deno.env.get('SMTP_PORT')!),
+        tls: true,
+        auth: {
+          username: Deno.env.get('SMTP_USER')!,
+          password: Deno.env.get('SMTP_PASS')!,
+        },
+      },
+    });
 
     try {
-      const emailResponse = await resend.emails.send({
-        from: "EduConnect <onboarding@resend.dev>",
-        to: [email],
+      await client.send({
+        from: `EduConnect <${Deno.env.get('SMTP_USER')!}>`,
+        to: email,
         subject: emailData.subject,
+        content: emailData.html,
         html: emailData.html,
       });
 
-      console.log("Email sent successfully:", emailResponse);
+      console.log("OTP email sent successfully to:", email);
 
     } catch (emailError) {
       console.error("Email sending failed:", emailError);
@@ -131,6 +142,8 @@ const handler = async (req: Request): Promise<Response> => {
           },
         }
       );
+    } finally {
+      await client.close();
     }
 
     console.log("OTP sent successfully to:", email);
