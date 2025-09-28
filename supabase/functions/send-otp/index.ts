@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0'
+import { Resend } from "npm:resend@2.0.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -98,37 +99,29 @@ const handler = async (req: Request): Promise<Response> => {
       `
     };
 
-    // Use Gmail SMTP directly via a simple email service
-    const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        service_id: 'gmail',
-        template_id: 'template_custom',
-        user_id: 'user_custom',
-        template_params: {
-          to_email: email,
-          from_name: 'EduConnect',
-          from_email: Deno.env.get('SMTP_USER'),
-          subject: emailData.subject,
-          message_html: emailData.html
-        }
-      })
-    });
+    // Send email using Resend
+    const resend = new Resend(Deno.env.get('RESEND_API_KEY'));
 
-    console.log("Email API Response:", response.status);
+    try {
+      const emailResponse = await resend.emails.send({
+        from: "EduConnect <onboarding@resend.dev>",
+        to: [email],
+        subject: emailData.subject,
+        html: emailData.html,
+      });
 
-    if (!response.ok) {
-      // Fallback: Just log the OTP for development
+      console.log("Email sent successfully:", emailResponse);
+
+    } catch (emailError) {
+      console.error("Email sending failed:", emailError);
+      // Log the OTP for development/testing
       console.log(`OTP for ${email}: ${otpCode}`);
       
       return new Response(
         JSON.stringify({ 
           success: true, 
           message: "OTP generated successfully",
-          devNote: "Check server logs for OTP (development mode)"
+          devNote: "Check server logs for OTP (email service unavailable)"
         }),
         {
           status: 200,
