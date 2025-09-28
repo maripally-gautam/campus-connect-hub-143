@@ -132,6 +132,7 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string
+          email: string | null
           gender: string | null
           id: string
           name: string | null
@@ -141,6 +142,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          email?: string | null
           gender?: string | null
           id?: string
           name?: string | null
@@ -150,6 +152,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          email?: string | null
           gender?: string | null
           id?: string
           name?: string | null
@@ -328,7 +331,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      sync_profile_email: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
