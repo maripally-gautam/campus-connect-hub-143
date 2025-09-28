@@ -4,10 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, User, Mail, Settings, Heart, FileText, Video, MessageSquare } from 'lucide-react';
+import { AlertCircle, User, Mail, Settings, Heart, FileText, Video, MessageSquare, Edit, Trash2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
+import { Textarea } from '@/components/ui/textarea';
 
 interface Profile {
   id: string;
@@ -36,6 +37,7 @@ export default function Profile() {
   });
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
+  const [editingContent, setEditingContent] = useState<{id: string, type: string, content: string} | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     username: '',
@@ -209,6 +211,35 @@ export default function Profile() {
         title: 'Success', 
         description: `Password reset link sent to ${user.email}!`
       });
+    }
+  };
+
+  const editContent = async (type: string, id: string, newContent: string) => {
+    try {
+      let tableName = '';
+      switch (type) {
+        case 'update':
+          tableName = 'updates';
+          break;
+        case 'request':
+          tableName = 'requests';
+          break;
+        default:
+          throw new Error('Invalid content type for editing');
+      }
+
+      const { error } = await supabase
+        .from(tableName as any)
+        .update({ content: newContent })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({ title: 'Success', description: `${type} updated successfully!` });
+      setEditingContent(null);
+      fetchUserContent();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
     }
   };
 
@@ -426,46 +457,122 @@ export default function Profile() {
             {/* Recent Updates */}
             {userContent.updates.slice(0, 3).map((update) => (
               <div key={update.id} className="flex justify-between items-start p-3 bg-secondary/20 rounded-lg">
-                <div>
+                <div className="flex-1">
                   <Badge variant="secondary">Update</Badge>
-                  <p className="text-sm mt-1">{update.content.slice(0, 100)}...</p>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-                    <Heart className="h-3 w-3" />
-                    {update.likes_count} likes
-                    <span>•</span>
-                    {new Date(update.created_at).toLocaleDateString('en-GB')}
-                  </div>
+                  {editingContent?.id === update.id ? (
+                    <div className="mt-2">
+                      <Textarea
+                        value={editingContent.content}
+                        onChange={(e) => setEditingContent({...editingContent, content: e.target.value})}
+                        className="min-h-[100px]"
+                      />
+                      <div className="flex gap-2 mt-2">
+                        <Button 
+                          size="sm" 
+                          onClick={() => editContent('update', update.id, editingContent.content)}
+                        >
+                          Save
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => setEditingContent(null)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-sm mt-1">{update.content.slice(0, 100)}...</p>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                        <Heart className="h-3 w-3" />
+                        {update.likes_count} likes
+                        <span>•</span>
+                        {new Date(update.created_at).toLocaleDateString('en-GB')}
+                      </div>
+                    </>
+                  )}
                 </div>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={() => deleteContent('update', update.id)}
-                >
-                  Delete
-                </Button>
+                {editingContent?.id !== update.id && (
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => setEditingContent({id: update.id, type: 'update', content: update.content})}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => deleteContent('update', update.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
             ))}
 
             {/* Recent Requests */}
             {userContent.requests.slice(0, 3).map((request) => (
               <div key={request.id} className="flex justify-between items-start p-3 bg-secondary/20 rounded-lg">
-                <div>
+                <div className="flex-1">
                   <Badge variant="outline">Request</Badge>
-                  <p className="text-sm mt-1">{request.content.slice(0, 100)}...</p>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-                    <Heart className="h-3 w-3" />
-                    {request.likes_count} likes
-                    <span>•</span>
-                    {new Date(request.created_at).toLocaleDateString('en-GB')}
-                  </div>
+                  {editingContent?.id === request.id ? (
+                    <div className="mt-2">
+                      <Textarea
+                        value={editingContent.content}
+                        onChange={(e) => setEditingContent({...editingContent, content: e.target.value})}
+                        className="min-h-[100px]"
+                      />
+                      <div className="flex gap-2 mt-2">
+                        <Button 
+                          size="sm" 
+                          onClick={() => editContent('request', request.id, editingContent.content)}
+                        >
+                          Save
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => setEditingContent(null)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-sm mt-1">{request.content.slice(0, 100)}...</p>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                        <Heart className="h-3 w-3" />
+                        {request.likes_count} likes
+                        <span>•</span>
+                        {new Date(request.created_at).toLocaleDateString('en-GB')}
+                      </div>
+                    </>
+                  )}
                 </div>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={() => deleteContent('request', request.id)}
-                >
-                  Delete
-                </Button>
+                {editingContent?.id !== request.id && (
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => setEditingContent({id: request.id, type: 'request', content: request.content})}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => deleteContent('request', request.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
             ))}
 
@@ -489,7 +596,7 @@ export default function Profile() {
                   size="sm"
                   onClick={() => deleteContent('note', note.id)}
                 >
-                  Delete
+                  <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
             ))}
@@ -514,7 +621,7 @@ export default function Profile() {
                   size="sm"
                   onClick={() => deleteContent('video', video.id)}
                 >
-                  Delete
+                  <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
             ))}
