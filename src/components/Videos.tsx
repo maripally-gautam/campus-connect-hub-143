@@ -258,8 +258,8 @@ export default function Videos() {
       video.profiles.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       video.profiles.username.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesBranch = !filterBranch || video.branch === filterBranch;
-    const matchesSemester = !filterSemester || video.semester?.toString() === filterSemester;
+    const matchesBranch = !filterBranch || filterBranch === 'all' || video.branch === filterBranch;
+    const matchesSemester = !filterSemester || filterSemester === 'all' || video.semester?.toString() === filterSemester;
 
     return matchesSearch && matchesBranch && matchesSemester;
   });
@@ -295,7 +295,7 @@ export default function Videos() {
             <SelectValue placeholder="Filter by Branch" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Branches</SelectItem>
+            <SelectItem value="all">All Branches</SelectItem>
             {branches.map(branch => (
               <SelectItem key={branch} value={branch}>{branch}</SelectItem>
             ))}
@@ -307,7 +307,7 @@ export default function Videos() {
             <SelectValue placeholder="Filter by Semester" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Semesters</SelectItem>
+            <SelectItem value="all">All Semesters</SelectItem>
             {semesters.map(sem => (
               <SelectItem key={sem} value={sem.toString()}>Semester {sem}</SelectItem>
             ))}
