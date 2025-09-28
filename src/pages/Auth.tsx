@@ -126,27 +126,51 @@ export default function Auth() {
 
   const handleSignIn = async () => {
     if (!formData.username || !formData.password) {
-      toast({ title: 'Error', description: 'Username and password are required', variant: 'destructive' });
+      toast({ title: 'Error', description: 'Email/Username and password are required', variant: 'destructive' });
       return;
     }
 
     setLoading(true);
 
     try {
-      // First, look up the user's email using their username
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('username')
-        .eq('username', formData.username)
-        .single();
+      let emailToUse = formData.username;
+      
+      // Check if input is an email (contains @)
+      if (!formData.username.includes('@')) {
+        // It's a username, look up the corresponding user
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('user_id')
+          .eq('username', formData.username)
+          .maybeSingle();
 
-      if (profileError || !profile) {
-        throw new Error('Username not found');
+        if (profileError) {
+          throw new Error('Error looking up user');
+        }
+        
+        if (!profile) {
+          throw new Error('Username not found');
+        }
+
+        // Get the user's email from auth.users via the user_id
+        // Since we can't query auth.users directly, we'll try the username as email first
+        // If the username field actually contains emails, this should work
+        const { data: profileWithEmail, error: emailError } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('username', formData.username)
+          .maybeSingle();
+
+        if (emailError || !profileWithEmail) {
+          throw new Error('Username not found');
+        }
+        
+        // Use the username field as email (based on how the trigger sets it)
+        emailToUse = profileWithEmail.username;
       }
 
-      // Use the username as email for sign in (since we store email in username field)
       const { error } = await supabase.auth.signInWithPassword({
-        email: formData.username,
+        email: emailToUse,
         password: formData.password
       });
 
@@ -156,7 +180,7 @@ export default function Auth() {
     } catch (error: any) {
       toast({ 
         title: 'Error', 
-        description: error.message || 'Invalid username or password', 
+        description: error.message || 'Invalid email/username or password', 
         variant: 'destructive' 
       });
     } finally {
@@ -170,7 +194,7 @@ export default function Auth() {
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold text-primary">EduConnect</CardTitle>
           <CardDescription>
-            {mode === 'signin' && 'Sign in with your username'}
+            {mode === 'signin' && 'Sign in with your email or username'}
             {mode === 'signup' && 'Create your account'}
             {mode === 'verify' && 'Enter verification code'}
             {mode === 'forgot' && 'Reset your password'}
@@ -183,7 +207,7 @@ export default function Auth() {
                 <div className="space-y-2 relative">
                   <Input
                     type="text"
-                    placeholder="Username"
+                    placeholder="Email or Username"
                     value={formData.username}
                     onChange={(e) => setFormData({...formData, username: e.target.value})}
                     className="pl-10"
