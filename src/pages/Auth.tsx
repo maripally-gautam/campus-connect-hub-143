@@ -125,16 +125,28 @@ export default function Auth() {
   };
 
   const handleSignIn = async () => {
-    if (!formData.email || !formData.password) {
-      toast({ title: 'Error', description: 'Email and password are required', variant: 'destructive' });
+    if (!formData.username || !formData.password) {
+      toast({ title: 'Error', description: 'Username and password are required', variant: 'destructive' });
       return;
     }
 
     setLoading(true);
 
     try {
+      // First, look up the user's email using their username
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('username', formData.username)
+        .single();
+
+      if (profileError || !profile) {
+        throw new Error('Username not found');
+      }
+
+      // Use the username as email for sign in (since we store email in username field)
       const { error } = await supabase.auth.signInWithPassword({
-        email: formData.email,
+        email: formData.username,
         password: formData.password
       });
 
@@ -144,7 +156,7 @@ export default function Auth() {
     } catch (error: any) {
       toast({ 
         title: 'Error', 
-        description: error.message || 'Invalid credentials', 
+        description: error.message || 'Invalid username or password', 
         variant: 'destructive' 
       });
     } finally {
@@ -158,7 +170,7 @@ export default function Auth() {
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold text-primary">EduConnect</CardTitle>
           <CardDescription>
-            {mode === 'signin' && 'Sign in to your account'}
+            {mode === 'signin' && 'Sign in with your username'}
             {mode === 'signup' && 'Create your account'}
             {mode === 'verify' && 'Enter verification code'}
             {mode === 'forgot' && 'Reset your password'}
@@ -167,19 +179,32 @@ export default function Auth() {
         <CardContent className="space-y-4">
           {(mode === 'signin' || mode === 'signup' || mode === 'forgot') && (
             <>
-              <div className="space-y-2">
-                <Input
-                  type="email"
-                  placeholder="Email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  className="pl-10"
-                />
-                <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              </div>
+              {mode === 'signin' ? (
+                <div className="space-y-2 relative">
+                  <Input
+                    type="text"
+                    placeholder="Username"
+                    value={formData.username}
+                    onChange={(e) => setFormData({...formData, username: e.target.value})}
+                    className="pl-10"
+                  />
+                  <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="space-y-2 relative">
+                  <Input
+                    type="email"
+                    placeholder="Email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    className="pl-10"
+                  />
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                </div>
+              )}
 
               {mode === 'signup' && (
-                <div className="space-y-2">
+                <div className="space-y-2 relative">
                   <Input
                     type="text"
                     placeholder="Username"
