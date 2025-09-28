@@ -137,7 +137,9 @@ export default function Auth() {
       
       // Check if input is an email (contains @)
       if (!formData.username.includes('@')) {
-        // It's a username, look up the corresponding user
+        // It's a username, need to find the email associated with this username
+        // Since profiles.username stores the actual username but we need the email for auth
+        // We need to get the user_id first, then find a way to get the email
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('user_id')
@@ -152,21 +154,27 @@ export default function Auth() {
           throw new Error('Username not found');
         }
 
-        // Get the user's email from auth.users via the user_id
-        // Since we can't query auth.users directly, we'll try the username as email first
-        // If the username field actually contains emails, this should work
-        const { data: profileWithEmail, error: emailError } = await supabase
+        // Since we can't directly query auth.users, we'll need to handle this differently
+        // The trigger creates profiles with username=email initially
+        // But users can change their username, so we need the original email
+        // For now, let's try a different approach - check if there's a profile with email as username
+        const { data: emailProfile, error: emailError } = await supabase
           .from('profiles')
-          .select('username')
-          .eq('username', formData.username)
+          .select('username')  
+          .eq('user_id', profile.user_id)
           .maybeSingle();
 
-        if (emailError || !profileWithEmail) {
-          throw new Error('Username not found');
+        if (emailError || !emailProfile) {
+          throw new Error('Cannot find email for this username. Please sign in with your email address.');
         }
         
-        // Use the username field as email (based on how the trigger sets it)
-        emailToUse = profileWithEmail.username;
+        // Check if the username field contains an email (from the original trigger)
+        // If not, we can't proceed with username login
+        if (!emailProfile.username.includes('@')) {
+          throw new Error('Username login not available. Please sign in with your email address.');
+        }
+        
+        emailToUse = emailProfile.username;
       }
 
       const { error } = await supabase.auth.signInWithPassword({
