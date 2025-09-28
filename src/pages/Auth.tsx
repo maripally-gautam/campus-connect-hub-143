@@ -1,14 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useSearchParams } from 'react-router-dom';
 
 type AuthMode = 'signin' | 'signup' | 'verify' | 'forgot';
 
 export default function Auth() {
+  const [searchParams] = useSearchParams();
   const [mode, setMode] = useState<AuthMode>('signin');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -18,6 +20,13 @@ export default function Auth() {
     username: '',
     otp: ''
   });
+
+  useEffect(() => {
+    const modeParam = searchParams.get('mode');
+    if (modeParam === 'signup') {
+      setMode('signup');
+    }
+  }, [searchParams]);
 
   const validatePassword = (password: string) => {
     const hasUpper = /[A-Z]/.test(password);

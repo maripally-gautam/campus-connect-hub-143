@@ -13,7 +13,7 @@ const Index = () => {
             <GraduationCap className="h-8 w-8 text-primary" />
             <h1 className="text-2xl font-bold text-primary">EduConnect</h1>
           </div>
-          <Link to="/auth">
+          <Link to="/auth?mode=signup">
             <Button className="flex items-center gap-2">
               Get Started
               <ArrowRight className="h-4 w-4" />
@@ -32,7 +32,7 @@ const Index = () => {
             Join the ultimate college student community where you can share notes, videos, 
             collaborate on projects, and stay organized with your academic journey.
           </p>
-          <Link to="/auth">
+          <Link to="/auth?mode=signup">
             <Button size="lg" className="text-lg px-8 py-3">
               Join EduConnect Today
             </Button>
@@ -122,7 +122,7 @@ const Index = () => {
               <p className="text-muted-foreground mb-6">
                 Join thousands of students already using EduConnect to enhance their learning experience.
               </p>
-              <Link to="/auth">
+              <Link to="/auth?mode=signup">
                 <Button size="lg" className="w-full md:w-auto">
                   Create Your Account
                 </Button>
