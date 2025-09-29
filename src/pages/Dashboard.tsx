@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, FileText, Video, CheckSquare, MessageSquare, UserCircle, LogOut } from 'lucide-react';
+import { Users, FileText, Video, CheckSquare, MessageSquare, UserCircle, LogOut, Upload } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import Updates from '@/components/Updates';
@@ -10,8 +10,9 @@ import Notes from '@/components/Notes';
 import Videos from '@/components/Videos';
 import TodoList from '@/components/TodoList';
 import Profile from '@/components/Profile';
+import FileUpload from '@/components/FileUpload';
 
-type Tab = 'dashboard' | 'updates' | 'requests' | 'notes' | 'videos' | 'todos' | 'profile';
+type Tab = 'dashboard' | 'updates' | 'requests' | 'notes' | 'videos' | 'todos' | 'profile' | 'upload';
 
 export default function Dashboard() {
   const { signOut } = useAuth();
@@ -56,6 +57,7 @@ export default function Dashboard() {
     { id: 'notes' as Tab, label: 'Notes', icon: FileText },
     { id: 'videos' as Tab, label: 'Videos', icon: Video },
     { id: 'todos' as Tab, label: 'To Do List', icon: CheckSquare },
+    { id: 'upload' as Tab, label: 'Upload', icon: Upload },
     { id: 'profile' as Tab, label: 'Profile', icon: UserCircle },
   ];
 
@@ -91,6 +93,8 @@ export default function Dashboard() {
         return <Videos />;
       case 'todos':
         return <TodoList />;
+      case 'upload':
+        return <FileUpload />;
       case 'profile':
         return <Profile />;
       default:
