@@ -118,6 +118,17 @@ export default function Requests() {
   const handleLike = async (requestId: string, isLiked: boolean) => {
     if (!user) return;
 
+    // Optimistic update
+    setRequests(prevRequests => prevRequests.map(request => 
+      request.id === requestId 
+        ? { 
+            ...request, 
+            user_liked: !isLiked, 
+            likes_count: isLiked ? request.likes_count - 1 : request.likes_count + 1 
+          } 
+        : request
+    ));
+
     try {
       if (isLiked) {
         // Unlike
@@ -147,9 +158,17 @@ export default function Requests() {
           .update({ likes_count: requests.find(r => r.id === requestId)!.likes_count + 1 })
           .eq('id', requestId);
       }
-
-      fetchRequests();
     } catch (error: any) {
+      // Revert on error
+      setRequests(prevRequests => prevRequests.map(request => 
+        request.id === requestId 
+          ? { 
+              ...request, 
+              user_liked: isLiked, 
+              likes_count: isLiked ? request.likes_count + 1 : request.likes_count - 1 
+            } 
+          : request
+      ));
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     }
   };

@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Trash2, Bell, BellOff, Clock } from 'lucide-react';
+import { Plus, Trash2, Bell, Clock, Edit } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
@@ -24,6 +24,8 @@ export default function TodoList() {
   const [newTask, setNewTask] = useState('');
   const [reminderTime, setReminderTime] = useState('');
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTask, setEditTask] = useState('');
 
   useEffect(() => {
     fetchTodos();
@@ -148,6 +150,28 @@ export default function TodoList() {
     }
   };
 
+  const editTodo = async (todoId: string) => {
+    if (!editTask.trim()) {
+      toast({ title: 'Error', description: 'Task cannot be empty', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('todos')
+        .update({ task: editTask })
+        .eq('id', todoId);
+
+      if (error) throw error;
+      
+      setEditingId(null);
+      setEditTask('');
+      toast({ title: 'Success', description: 'Task updated successfully!' });
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
+  };
+
   const deleteTodo = async (todoId: string) => {
     try {
       const { error } = await supabase
@@ -258,22 +282,61 @@ export default function TodoList() {
                 />
                 
                 <div className="flex-1">
-                  <div className="text-foreground">{todo.task}</div>
-                  {todo.reminder_time && (
-                    <div className="text-sm text-muted-foreground flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      {new Date(todo.reminder_time).toLocaleString()}
+                  {editingId === todo.id ? (
+                    <div className="flex gap-2">
+                      <Input
+                        value={editTask}
+                        onChange={(e) => setEditTask(e.target.value)}
+                        className="flex-1"
+                      />
+                      <Button size="sm" onClick={() => editTodo(todo.id)}>
+                        Save
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => {
+                          setEditingId(null);
+                          setEditTask('');
+                        }}
+                      >
+                        Cancel
+                      </Button>
                     </div>
+                  ) : (
+                    <>
+                      <div className="text-foreground">{todo.task}</div>
+                      {todo.reminder_time && (
+                        <div className="text-sm text-muted-foreground flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {new Date(todo.reminder_time).toLocaleString()}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
                 
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => deleteTodo(todo.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                {editingId !== todo.id && (
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setEditingId(todo.id);
+                        setEditTask(todo.task);
+                      }}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => deleteTodo(todo.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
             ))}
           </CardContent>

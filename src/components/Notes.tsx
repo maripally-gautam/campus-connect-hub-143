@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Heart, Plus, Search, Download, Trash2, Upload } from 'lucide-react';
+import { Heart, Plus, Search, Download, Trash2, Upload, Eye } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
@@ -162,9 +162,20 @@ export default function Notes() {
     setUploading(true);
 
     try {
-      // For now, we'll simulate Google Drive upload with a placeholder URL
-      // In a real implementation, this would upload to Google Drive
-      const fakeGoogleDriveUrl = `https://drive.google.com/file/d/fake-${Date.now()}/view`;
+      // Upload file to Supabase Storage
+      const fileExt = uploadFile.name.split('.').pop();
+      const fileName = `${user?.id}/${Date.now()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('notes')
+        .upload(fileName, uploadFile);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('notes')
+        .getPublicUrl(fileName);
 
       const { error } = await supabase
         .from('notes')
@@ -174,7 +185,7 @@ export default function Notes() {
           semester: uploadData.semester ? parseInt(uploadData.semester) : null,
           subject: uploadData.subject || null,
           description: uploadData.description || null,
-          file_url: fakeGoogleDriveUrl,
+          file_url: publicUrl,
           file_name: uploadFile.name,
           file_type: uploadFile.type,
           file_size: uploadFile.size,
@@ -196,6 +207,17 @@ export default function Notes() {
 
   const handleLike = async (noteId: string, isLiked: boolean) => {
     if (!user) return;
+
+    // Optimistic update
+    setNotes(prevNotes => prevNotes.map(note => 
+      note.id === noteId 
+        ? { 
+            ...note, 
+            user_liked: !isLiked, 
+            likes_count: isLiked ? note.likes_count - 1 : note.likes_count + 1 
+          } 
+        : note
+    ));
 
     try {
       if (isLiked) {
@@ -226,9 +248,17 @@ export default function Notes() {
           .update({ likes_count: notes.find(n => n.id === noteId)!.likes_count + 1 })
           .eq('id', noteId);
       }
-
-      fetchNotes();
     } catch (error: any) {
+      // Revert on error
+      setNotes(prevNotes => prevNotes.map(note => 
+        note.id === noteId 
+          ? { 
+              ...note, 
+              user_liked: isLiked, 
+              likes_count: isLiked ? note.likes_count + 1 : note.likes_count - 1 
+            } 
+          : note
+      ));
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     }
   };
@@ -237,12 +267,26 @@ export default function Notes() {
     if (!confirm('Are you sure you want to delete this note?')) return;
 
     try {
+      // Get the note to find the file path
+      const note = notes.find(n => n.id === noteId);
+      
+      // Delete from database
       const { error } = await supabase
         .from('notes')
         .delete()
         .eq('id', noteId);
 
       if (error) throw error;
+
+      // Delete from storage if it's a storage URL
+      if (note?.file_url.includes('supabase.co/storage')) {
+        const filePath = note.file_url.split('/notes/')[1];
+        if (filePath) {
+          await supabase.storage
+            .from('notes')
+            .remove([filePath]);
+        }
+      }
 
       toast({ title: 'Success', description: 'Note deleted successfully!' });
     } catch (error: any) {
@@ -418,15 +462,33 @@ export default function Notes() {
                     <div className="text-sm text-foreground">{note.description}</div>
                   )}
                   
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => window.open(note.file_url, '_blank')}
-                    className="w-full flex items-center gap-2"
-                  >
-                    <Download className="h-4 w-4" />
-                    Download/View
-                  </Button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(note.file_url, '_blank')}
+                      className="flex items-center gap-2"
+                    >
+                      <Eye className="h-4 w-4" />
+                      View
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const link = document.createElement('a');
+                        link.href = note.file_url;
+                        link.download = note.file_name;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      <Download className="h-4 w-4" />
+                      Download
+                    </Button>
+                  </div>
                   
                   <div className="flex justify-between items-center text-sm text-muted-foreground">
                     <div className="flex items-center gap-4">
