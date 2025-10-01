@@ -50,6 +50,18 @@ export default function Auth() {
         toast({ title: 'Error', description: 'Username is required', variant: 'destructive' });
         return;
       }
+
+      // Check if username already exists
+      const { data: existingUser } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('username', formData.username)
+        .maybeSingle();
+
+      if (existingUser) {
+        toast({ title: 'Error', description: 'Username already exists', variant: 'destructive' });
+        return;
+      }
       
       const passwordError = validatePassword(formData.password);
       if (passwordError) {

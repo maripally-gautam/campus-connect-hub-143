@@ -10,14 +10,15 @@ import { toast } from '@/hooks/use-toast';
 
 interface Update {
   id: string;
+  title: string;
   content: string;
   likes_count: number;
   created_at: string;
   updated_at: string;
   user_id: string;
   profiles: {
-    name: string;
     username: string;
+    is_deleted: boolean;
   };
   user_liked?: boolean;
 }
@@ -27,9 +28,11 @@ export default function Updates() {
   const [updates, setUpdates] = useState<Update[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNewPost, setShowNewPost] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
 
   useEffect(() => {
@@ -61,7 +64,7 @@ export default function Updates() {
         .from('updates')
         .select(`
           *,
-          profiles!updates_user_id_fkey(name, username)
+          profiles!updates_user_id_fkey(username, is_deleted)
         `)
         .order('created_at', { ascending: false });
 
@@ -92,8 +95,8 @@ export default function Updates() {
   };
 
   const handlePost = async () => {
-    if (!newContent.trim()) {
-      toast({ title: 'Error', description: 'Content cannot be empty', variant: 'destructive' });
+    if (!newTitle.trim() || !newContent.trim()) {
+      toast({ title: 'Error', description: 'Title and content cannot be empty', variant: 'destructive' });
       return;
     }
 
@@ -101,12 +104,14 @@ export default function Updates() {
       const { error } = await supabase
         .from('updates')
         .insert([{
+          title: newTitle,
           content: newContent,
           user_id: user?.id
         }]);
 
       if (error) throw error;
 
+      setNewTitle('');
       setNewContent('');
       setShowNewPost(false);
       toast({ title: 'Success', description: 'Update posted successfully!' });
@@ -174,20 +179,21 @@ export default function Updates() {
   };
 
   const handleEdit = async (updateId: string) => {
-    if (!editContent.trim()) {
-      toast({ title: 'Error', description: 'Content cannot be empty', variant: 'destructive' });
+    if (!editTitle.trim() || !editContent.trim()) {
+      toast({ title: 'Error', description: 'Title and content cannot be empty', variant: 'destructive' });
       return;
     }
 
     try {
       const { error } = await supabase
         .from('updates')
-        .update({ content: editContent })
+        .update({ title: editTitle, content: editContent })
         .eq('id', updateId);
 
       if (error) throw error;
 
       setEditingId(null);
+      setEditTitle('');
       setEditContent('');
       toast({ title: 'Success', description: 'Update edited successfully!' });
     } catch (error: any) {
@@ -219,8 +225,8 @@ export default function Updates() {
   };
 
   const filteredUpdates = updates.filter(update => 
+    update.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     update.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    update.profiles.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     update.profiles.username.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -256,6 +262,11 @@ export default function Updates() {
             <CardTitle>Create New Update</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <Input
+              placeholder="Title"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+            />
             <Textarea
               placeholder="What's on your mind?"
               value={newContent}
@@ -264,7 +275,7 @@ export default function Updates() {
             />
             <div className="flex gap-2">
               <Button onClick={handlePost}>Post Update</Button>
-              <Button variant="outline" onClick={() => {setShowNewPost(false); setNewContent('');}}>
+              <Button variant="outline" onClick={() => {setShowNewPost(false); setNewTitle(''); setNewContent('');}}>
                 Cancel
               </Button>
             </div>
@@ -286,11 +297,19 @@ export default function Updates() {
               <CardContent className="p-4">
                 <div className="space-y-3">
                   <div className="font-medium text-foreground">
-                    {update.profiles.name || update.profiles.username}
+                    {update.profiles.username}
+                    {update.profiles.is_deleted && (
+                      <span className="text-sm text-muted-foreground ml-2">(deleted user)</span>
+                    )}
                   </div>
                   
                   {editingId === update.id ? (
                     <div className="space-y-2">
+                      <Input
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        placeholder="Title"
+                      />
                       <Textarea
                         value={editContent}
                         onChange={(e) => setEditContent(e.target.value)}
@@ -303,14 +322,19 @@ export default function Updates() {
                         <Button 
                           size="sm" 
                           variant="outline" 
-                          onClick={() => {setEditingId(null); setEditContent('');}}
+                          onClick={() => {setEditingId(null); setEditTitle(''); setEditContent('');}}
                         >
                           Cancel
                         </Button>
                       </div>
                     </div>
                   ) : (
-                    <div className="text-foreground">{update.content}</div>
+                    <>
+                      <div>
+                        <h3 className="text-lg font-semibold text-foreground">{update.title}</h3>
+                        <p className="text-foreground mt-2">{update.content}</p>
+                      </div>
+                    </>
                   )}
                   
                   <div className="flex justify-between items-center text-sm text-muted-foreground">
@@ -333,6 +357,7 @@ export default function Updates() {
                               size="sm"
                               onClick={() => {
                                 setEditingId(update.id);
+                                setEditTitle(update.title || '');
                                 setEditContent(update.content);
                               }}
                             >

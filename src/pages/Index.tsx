@@ -32,11 +32,18 @@ const Index = () => {
             Join the ultimate college student community where you can share notes, videos, 
             collaborate on projects, and stay organized with your academic journey.
           </p>
-          <Link to="/auth?mode=signup">
-            <Button size="lg" className="text-lg px-8 py-3">
-              Join EduConnect Today
-            </Button>
-          </Link>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link to="/auth?mode=signup">
+              <Button size="lg" className="text-lg px-8 py-3">
+                Join EduConnect Today
+              </Button>
+            </Link>
+            <Link to="/auth?mode=signin">
+              <Button size="lg" variant="outline" className="text-lg px-8 py-3">
+                Sign In
+              </Button>
+            </Link>
+          </div>
         </div>
 
         {/* Features Grid */}

@@ -12,11 +12,11 @@ import { Textarea } from '@/components/ui/textarea';
 
 interface Profile {
   id: string;
-  name: string;
   username: string;
   gender: string;
   created_at: string;
   user_id: string;
+  is_deleted: boolean;
 }
 
 interface UserContent {
@@ -39,7 +39,6 @@ export default function Profile() {
   const [editing, setEditing] = useState(false);
   const [editingContent, setEditingContent] = useState<{id: string, type: string, content: string} | null>(null);
   const [formData, setFormData] = useState({
-    name: '',
     username: '',
     gender: ''
   });
@@ -125,13 +124,12 @@ export default function Profile() {
 
       setProfile(data);
       setFormData({
-        name: data.name || '',
         username: data.username || '',
         gender: data.gender || ''
       });
 
       // Check if profile is incomplete
-      const isIncomplete = !data.name || !data.gender;
+      const isIncomplete = !data.gender;
       setShowIncompleteWarning(isIncomplete);
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -166,16 +164,28 @@ export default function Profile() {
   const handleUpdate = async () => {
     if (!profile) return;
 
-    if (!formData.name.trim() || !formData.username.trim()) {
-      toast({ title: 'Error', description: 'Name and username are required', variant: 'destructive' });
+    if (!formData.username.trim()) {
+      toast({ title: 'Error', description: 'Username is required', variant: 'destructive' });
       return;
     }
 
     try {
+      // Check if username is taken by another user
+      const { data: existingUser } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', formData.username)
+        .neq('id', profile.id)
+        .maybeSingle();
+
+      if (existingUser) {
+        toast({ title: 'Error', description: 'Username already exists', variant: 'destructive' });
+        return;
+      }
+
       const { error } = await supabase
         .from('profiles')
         .update({
-          name: formData.name,
           username: formData.username,
           gender: formData.gender
         })
@@ -185,7 +195,40 @@ export default function Profile() {
 
       setEditing(false);
       toast({ title: 'Success', description: 'Profile updated successfully!' });
-      fetchProfile(); // Refresh profile data
+      fetchProfile();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!confirm('Are you sure you want to delete your account? This action cannot be undone. Your Updates, Requests, Notes, and Videos will remain visible.')) return;
+
+    try {
+      // Mark profile as deleted
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ is_deleted: true })
+        .eq('user_id', user?.id);
+
+      if (profileError) throw profileError;
+
+      // Delete todos
+      await supabase
+        .from('todos')
+        .delete()
+        .eq('user_id', user?.id);
+
+      // Delete chat messages
+      await supabase
+        .from('messages')
+        .delete()
+        .eq('sender_id', user?.id);
+
+      // Sign out and redirect
+      await supabase.auth.signOut();
+      
+      toast({ title: 'Success', description: 'Account deleted successfully' });
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     }
@@ -335,15 +378,6 @@ export default function Profile() {
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium">Name *</label>
-                  <Input
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    placeholder="Your full name"
-                  />
-                </div>
-                
-                <div>
                   <label className="text-sm font-medium">Username *</label>
                   <Input
                     value={formData.username}
@@ -380,11 +414,6 @@ export default function Profile() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium text-muted-foreground">Name</label>
-                <p className="text-foreground">{profile.name || 'Not set'}</p>
-              </div>
-              
-              <div>
                 <label className="text-sm font-medium text-muted-foreground">Username</label>
                 <p className="text-foreground">{profile.username}</p>
               </div>
@@ -404,10 +433,13 @@ export default function Profile() {
             </div>
           )}
           
-          <div className="pt-4 border-t">
+          <div className="pt-4 border-t flex gap-2">
             <Button variant="outline" onClick={handlePasswordReset}>
               <Settings className="h-4 w-4 mr-2" />
               Reset Password
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteAccount}>
+              Delete Account
             </Button>
           </div>
         </CardContent>

@@ -10,8 +10,9 @@ import Notes from '@/components/Notes';
 import Videos from '@/components/Videos';
 import TodoList from '@/components/TodoList';
 import Profile from '@/components/Profile';
+import Chats from '@/components/Chats';
 
-type Tab = 'dashboard' | 'updates' | 'requests' | 'notes' | 'videos' | 'todos' | 'profile';
+type Tab = 'dashboard' | 'updates' | 'requests' | 'notes' | 'videos' | 'chats' | 'todos' | 'profile';
 
 export default function Dashboard() {
   const { signOut } = useAuth();
@@ -19,24 +20,26 @@ export default function Dashboard() {
   const [totalUsers, setTotalUsers] = useState(0);
 
   useEffect(() => {
-    // Fetch total registered users
+    // Fetch total registered users from the user_count table
     const fetchUserCount = async () => {
-      const { count } = await supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true });
-      setTotalUsers(count || 0);
+      const { data } = await supabase
+        .from('user_count')
+        .select('total_registered')
+        .single();
+      
+      setTotalUsers(data?.total_registered || 0);
     };
 
     fetchUserCount();
 
-    // Subscribe to profile changes for real-time user count
+    // Subscribe to user_count changes for real-time updates
     const subscription = supabase
-      .channel('profiles-changes')
+      .channel('user-count-changes')
       .on('postgres_changes', 
         { 
-          event: 'INSERT', 
+          event: 'UPDATE', 
           schema: 'public', 
-          table: 'profiles' 
+          table: 'user_count' 
         }, 
         () => {
           fetchUserCount();
@@ -55,6 +58,7 @@ export default function Dashboard() {
     { id: 'requests' as Tab, label: 'Requests', icon: MessageSquare },
     { id: 'notes' as Tab, label: 'Notes', icon: FileText },
     { id: 'videos' as Tab, label: 'Videos', icon: Video },
+    { id: 'chats' as Tab, label: 'Chats', icon: MessageSquare },
     { id: 'todos' as Tab, label: 'To Do List', icon: CheckSquare },
     { id: 'profile' as Tab, label: 'Profile', icon: UserCircle },
   ];
@@ -89,6 +93,8 @@ export default function Dashboard() {
         return <Notes />;
       case 'videos':
         return <Videos />;
+      case 'chats':
+        return <Chats />;
       case 'todos':
         return <TodoList />;
       case 'profile':
@@ -135,8 +141,8 @@ export default function Dashboard() {
           
           {/* Mobile Navigation */}
           <div className="md:hidden pb-4">
-            <div className="grid grid-cols-3 gap-1">
-              {tabs.slice(0, 6).map((tab) => {
+            <div className="grid grid-cols-4 gap-1">
+              {tabs.slice(0, 8).map((tab) => {
                 const Icon = tab.icon;
                 return (
                   <Button
@@ -146,7 +152,7 @@ export default function Dashboard() {
                     className="flex flex-col items-center gap-1 h-16 text-xs"
                   >
                     <Icon className="h-4 w-4" />
-                    {tab.label}
+                    <span className="truncate w-full text-center">{tab.label}</span>
                   </Button>
                 );
               })}

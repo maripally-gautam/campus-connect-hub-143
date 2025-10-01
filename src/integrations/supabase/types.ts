@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      chats: {
+        Row: {
+          created_at: string
+          id: string
+          participant1_id: string | null
+          participant2_id: string | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          participant1_id?: string | null
+          participant2_id?: string | null
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          participant1_id?: string | null
+          participant2_id?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       likes: {
         Row: {
           content_id: string
@@ -43,6 +70,41 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      messages: {
+        Row: {
+          chat_id: string
+          content: string
+          created_at: string
+          id: string
+          is_ai: boolean
+          sender_id: string | null
+        }
+        Insert: {
+          chat_id: string
+          content: string
+          created_at?: string
+          id?: string
+          is_ai?: boolean
+          sender_id?: string | null
+        }
+        Update: {
+          chat_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          is_ai?: boolean
+          sender_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "chats"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -135,6 +197,7 @@ export type Database = {
           email: string | null
           gender: string | null
           id: string
+          is_deleted: boolean
           name: string | null
           updated_at: string
           user_id: string
@@ -145,6 +208,7 @@ export type Database = {
           email?: string | null
           gender?: string | null
           id?: string
+          is_deleted?: boolean
           name?: string | null
           updated_at?: string
           user_id: string
@@ -155,6 +219,7 @@ export type Database = {
           email?: string | null
           gender?: string | null
           id?: string
+          is_deleted?: boolean
           name?: string | null
           updated_at?: string
           user_id?: string
@@ -168,6 +233,7 @@ export type Database = {
           created_at: string
           id: string
           likes_count: number
+          title: string | null
           updated_at: string
           user_id: string
         }
@@ -176,6 +242,7 @@ export type Database = {
           created_at?: string
           id?: string
           likes_count?: number
+          title?: string | null
           updated_at?: string
           user_id: string
         }
@@ -184,6 +251,7 @@ export type Database = {
           created_at?: string
           id?: string
           likes_count?: number
+          title?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -241,6 +309,7 @@ export type Database = {
           created_at: string
           id: string
           likes_count: number
+          title: string | null
           updated_at: string
           user_id: string
         }
@@ -249,6 +318,7 @@ export type Database = {
           created_at?: string
           id?: string
           likes_count?: number
+          title?: string | null
           updated_at?: string
           user_id: string
         }
@@ -257,6 +327,7 @@ export type Database = {
           created_at?: string
           id?: string
           likes_count?: number
+          title?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -269,6 +340,24 @@ export type Database = {
             referencedColumns: ["user_id"]
           },
         ]
+      }
+      user_count: {
+        Row: {
+          id: string
+          total_registered: number
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          total_registered?: number
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          total_registered?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       videos: {
         Row: {
