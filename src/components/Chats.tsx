@@ -48,7 +48,7 @@ export default function Chats() {
     if (selectedChat) {
       fetchMessages(selectedChat.id);
       
-      // Subscribe to new messages
+      // Subscribe to new messages only for the selected chat
       const subscription = supabase
         .channel(`messages-${selectedChat.id}`)
         .on('postgres_changes', 
@@ -58,8 +58,9 @@ export default function Chats() {
             table: 'messages',
             filter: `chat_id=eq.${selectedChat.id}`
           }, 
-          () => {
-            fetchMessages(selectedChat.id);
+          (payload) => {
+            // Add new message directly instead of refetching all
+            setMessages(prev => [...prev, payload.new as Message]);
           }
         )
         .subscribe();

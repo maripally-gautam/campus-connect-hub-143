@@ -420,6 +420,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      delete_user_account: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       sync_profile_email: {
         Args: Record<PropertyKey, never>
         Returns: undefined

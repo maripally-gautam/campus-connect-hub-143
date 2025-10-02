@@ -202,10 +202,12 @@ export default function Profile() {
   };
 
   const handleDeleteAccount = async () => {
-    if (!confirm('Are you sure you want to delete your account? This action cannot be undone. Your Updates, Requests, Notes, and Videos will remain visible.')) return;
+    if (!confirm('Are you sure you want to permanently delete your account? This action cannot be undone.\n\nThis will:\n- Permanently delete your account from the system\n- Delete your todos and chat messages\n- Keep your notes, updates, requests, and videos visible (marked as from deleted user)')) {
+      return;
+    }
 
     try {
-      // Mark profile as deleted
+      // Mark profile as deleted first
       const { error: profileError } = await supabase
         .from('profiles')
         .update({ is_deleted: true })
@@ -219,18 +221,30 @@ export default function Profile() {
         .delete()
         .eq('user_id', user?.id);
 
-      // Delete chat messages
+      // Delete messages (but keep chats)
       await supabase
         .from('messages')
         .delete()
         .eq('sender_id', user?.id);
 
-      // Sign out and redirect
-      await supabase.auth.signOut();
+      // Delete the auth user using our secure function
+      const { error: deleteError } = await supabase.rpc('delete_user_account');
+
+      if (deleteError) throw deleteError;
+
+      toast({ 
+        title: 'Account Deleted', 
+        description: 'Your account has been permanently deleted' 
+      });
       
-      toast({ title: 'Success', description: 'Account deleted successfully' });
+      // Sign out
+      await supabase.auth.signOut();
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      toast({ 
+        title: 'Error', 
+        description: error.message || 'Failed to delete account', 
+        variant: 'destructive' 
+      });
     }
   };
 

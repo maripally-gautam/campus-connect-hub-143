@@ -14,6 +14,7 @@ serve(async (req) => {
 
   try {
     const { chatId, messages } = await req.json();
+    console.log('Chatbot request:', { chatId, messageCount: messages?.length });
 
     if (!chatId || !messages) {
       throw new Error('Missing required parameters');
@@ -21,9 +22,11 @@ serve(async (req) => {
 
     const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
     if (!openAIApiKey) {
+      console.error('OpenAI API key not configured');
       throw new Error('OpenAI API key not configured');
     }
 
+    console.log('Calling OpenAI API...');
     // Call OpenAI API
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -53,18 +56,21 @@ serve(async (req) => {
 
     const data = await response.json();
     const aiResponse = data.choices[0].message.content;
+    console.log('Got AI response:', aiResponse.substring(0, 100) + '...');
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     
     if (!supabaseUrl || !supabaseKey) {
+      console.error('Supabase credentials not configured');
       throw new Error('Supabase credentials not configured');
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Save AI response to database
+    console.log('Saving to database...');
     const { error: insertError } = await supabase
       .from('messages')
       .insert({
@@ -79,13 +85,14 @@ serve(async (req) => {
       throw insertError;
     }
 
+    console.log('Chatbot response saved successfully');
     return new Response(
       JSON.stringify({ response: aiResponse }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-  } catch (error) {
-    console.error('Error in chatbot function:', error);
+  } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error in chatbot function:', errorMessage);
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { 
