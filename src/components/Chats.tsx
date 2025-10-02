@@ -80,7 +80,7 @@ export default function Chats() {
 
   const fetchChats = async () => {
     try {
-      // Get all users for private chats (exclude deleted users)
+      // Get all users for private chats (exclude current user and deleted users)
       const { data: profiles } = await supabase
         .from('profiles')
         .select('user_id, username, is_deleted')
@@ -112,42 +112,64 @@ export default function Chats() {
         botChat.data = newBotChat;
       }
 
-      // Get existing private chats
-      const { data: existingChats } = await supabase
+      // Get existing private chats where user is participant1 OR participant2
+      const { data: existingChats1 } = await supabase
         .from('chats')
         .select('*')
         .eq('type', 'private')
         .eq('participant1_id', user?.id);
 
+      const { data: existingChats2 } = await supabase
+        .from('chats')
+        .select('*')
+        .eq('type', 'private')
+        .eq('participant2_id', user?.id);
+
+      const allExistingChats = [...(existingChats1 || []), ...(existingChats2 || [])];
+
       // Get profiles for existing chats
-      const chatProfiles = existingChats ? await Promise.all(
-        existingChats.map(async (chat) => {
+      const chatProfiles = await Promise.all(
+        allExistingChats.map(async (chat) => {
+          // Determine the other user's ID
+          const otherUserId = chat.participant1_id === user?.id 
+            ? chat.participant2_id 
+            : chat.participant1_id;
+
           const { data: profile } = await supabase
             .from('profiles')
             .select('username, is_deleted')
-            .eq('user_id', chat.participant2_id)
+            .eq('user_id', otherUserId)
             .single();
-          return { ...chat, profiles: profile };
+          
+          return { ...chat, profiles: profile, otherUserId };
         })
-      ) : [];
+      );
 
+      // Get unique chat list (deduplicate)
+      const uniqueChatProfiles = chatProfiles.filter((chat, index, self) => 
+        index === self.findIndex(c => c.otherUserId === chat.otherUserId)
+      );
+
+      // Build final chat list
       const allChats = [
         { ...everyoneChat, displayName: 'Everyone' },
         { ...botChat.data, displayName: 'Chatbot' },
-        ...(chatProfiles || []).map(chat => ({
+        ...uniqueChatProfiles.map(chat => ({
           ...chat,
           displayName: chat.profiles?.username || 'Unknown'
         })),
-        ...(profiles || []).filter(profile => 
-          !existingChats?.some(chat => chat.participant2_id === profile.user_id)
-        ).map(profile => ({
-          id: null,
-          type: 'private',
-          participant1_id: user?.id,
-          participant2_id: profile.user_id,
-          displayName: profile.username,
-          profiles: profile
-        }))
+        ...(profiles || [])
+          .filter(profile => 
+            !uniqueChatProfiles.some(chat => chat.otherUserId === profile.user_id)
+          )
+          .map(profile => ({
+            id: null,
+            type: 'private',
+            participant1_id: user?.id,
+            participant2_id: profile.user_id,
+            displayName: profile.username,
+            profiles: profile
+          }))
       ];
 
       setChats(allChats as any);
@@ -157,6 +179,7 @@ export default function Chats() {
         setSelectedChat({ ...everyoneChat, displayName: 'Everyone' } as any);
       }
     } catch (error: any) {
+      console.error('Error fetching chats:', error);
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } finally {
       setLoading(false);
@@ -238,26 +261,38 @@ export default function Chats() {
 
       // If it's a bot chat, get AI response
       if (selectedChat.type === 'bot') {
-        // Get last 10 messages for context
-        const recentMessages = messages.slice(-10).concat({
-          id: 'temp',
-          content: newMessage,
-          sender_id: user?.id || null,
-          is_ai: false,
-          created_at: new Date().toISOString()
-        });
+        try {
+          // Get last 10 messages for context
+          const recentMessages = messages.slice(-10).concat({
+            id: 'temp',
+            content: newMessage,
+            sender_id: user?.id || null,
+            is_ai: false,
+            created_at: new Date().toISOString()
+          });
 
-        const { data, error: aiError } = await supabase.functions.invoke('chatbot', {
-          body: { 
-            chatId: selectedChat.id,
-            messages: recentMessages.map(m => ({
-              role: m.is_ai ? 'assistant' : 'user',
-              content: m.content
-            }))
+          const { data, error: aiError } = await supabase.functions.invoke('chatbot', {
+            body: { 
+              chatId: selectedChat.id,
+              messages: recentMessages.map(m => ({
+                role: m.is_ai ? 'assistant' : 'user',
+                content: m.content
+              }))
+            }
+          });
+
+          if (aiError) {
+            console.error('Chatbot error:', aiError);
+            throw aiError;
           }
-        });
-
-        if (aiError) throw aiError;
+        } catch (aiError: any) {
+          console.error('AI response error:', aiError);
+          toast({ 
+            title: 'Chatbot Error', 
+            description: 'The chatbot is temporarily unavailable. Please try again later.',
+            variant: 'destructive' 
+          });
+        }
       }
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });

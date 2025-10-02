@@ -459,7 +459,7 @@ export default function Videos() {
                     className="inline-flex items-center gap-2 text-sm text-primary hover:underline break-all"
                   >
                     <LinkIcon className="h-4 w-4 flex-shrink-0" />
-                    Watch Video
+                    {video.file_url}
                   </a>
                   
                   <div className="flex justify-between items-center text-sm text-muted-foreground">

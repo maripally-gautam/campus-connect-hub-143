@@ -7,7 +7,7 @@ import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useSearchParams } from 'react-router-dom';
 
-type AuthMode = 'signin' | 'signup' | 'verify' | 'forgot';
+type AuthMode = 'signin' | 'signup' | 'verify' | 'forgot' | 'reset';
 
 export default function Auth() {
   const [searchParams] = useSearchParams();
@@ -104,11 +104,14 @@ export default function Auth() {
     setLoading(true);
 
     try {
+      // Check if this is signup or password reset
+      const isSignup = formData.password && formData.username;
+      
       const { data, error } = await supabase.functions.invoke('verify-otp', {
         body: {
           email: formData.email,
           otpCode: formData.otp,
-          ...(mode === 'verify' && formData.password ? {
+          ...(isSignup ? {
             password: formData.password,
             username: formData.username
           } : {})
@@ -117,10 +120,11 @@ export default function Auth() {
 
       if (error) throw error;
 
-      toast({ title: 'Success', description: 'Account created successfully!' });
-      
-      // Sign in the user after successful verification
-      if (formData.password) {
+      if (isSignup) {
+        // Signup flow
+        toast({ title: 'Success', description: 'Account created successfully!' });
+        
+        // Sign in the user after successful verification
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email: formData.email,
           password: formData.password
@@ -133,6 +137,10 @@ export default function Auth() {
             variant: 'destructive' 
           });
         }
+      } else {
+        // Password reset flow - redirect to reset page
+        toast({ title: 'Success', description: 'OTP verified! Please enter your new password.' });
+        setMode('reset' as AuthMode);
       }
     } catch (error: any) {
       if (error.message.includes('Invalid') || error.message.includes('expired')) {
@@ -140,6 +148,44 @@ export default function Auth() {
       } else {
         toast({ title: 'Error', description: error.message, variant: 'destructive' });
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!formData.password) {
+      toast({ title: 'Error', description: 'Password is required', variant: 'destructive' });
+      return;
+    }
+
+    const passwordError = validatePassword(formData.password);
+    if (passwordError) {
+      toast({ title: 'Error', description: passwordError, variant: 'destructive' });
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const { error } = await supabase.functions.invoke('reset-password', {
+        body: {
+          email: formData.email,
+          newPassword: formData.password
+        }
+      });
+
+      if (error) throw error;
+
+      toast({ title: 'Success', description: 'Password reset successfully! Please sign in.' });
+      setMode('signin');
+      setFormData({ email: '', password: '', username: '', otp: '' });
+    } catch (error: any) {
+      toast({ 
+        title: 'Error', 
+        description: error.message || 'Failed to reset password', 
+        variant: 'destructive' 
+      });
     } finally {
       setLoading(false);
     }
@@ -205,6 +251,7 @@ export default function Auth() {
             {mode === 'signup' && 'Create your account'}
             {mode === 'verify' && 'Enter verification code'}
             {mode === 'forgot' && 'Reset your password'}
+            {mode === 'reset' && 'Enter your new password'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -287,6 +334,28 @@ export default function Auth() {
             </div>
           )}
 
+          {mode === 'reset' && (
+            <div className="space-y-2 relative">
+              <Input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="New Password"
+                value={formData.password}
+                onChange={(e) => setFormData({...formData, password: e.target.value})}
+                className="pl-10 pr-10"
+              />
+              <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-1 top-1 h-8 w-8"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </div>
+          )}
+
           <div className="space-y-2">
             {mode === 'signin' && (
               <Button onClick={handleSignIn} className="w-full" disabled={loading}>
@@ -302,7 +371,13 @@ export default function Auth() {
             
             {mode === 'verify' && (
               <Button onClick={handleVerifyOTP} className="w-full" disabled={loading}>
-                {loading ? 'Verifying...' : 'Verify & Create Account'}
+                {loading ? 'Verifying...' : 'Verify OTP'}
+              </Button>
+            )}
+
+            {mode === 'reset' && (
+              <Button onClick={handleResetPassword} className="w-full" disabled={loading}>
+                {loading ? 'Resetting...' : 'Reset Password'}
               </Button>
             )}
           </div>
@@ -328,7 +403,7 @@ export default function Auth() {
               </>
             )}
             
-            {(mode === 'signup' || mode === 'forgot' || mode === 'verify') && (
+            {(mode === 'signup' || mode === 'forgot' || mode === 'verify' || mode === 'reset') && (
               <Button 
                 variant="link" 
                 onClick={() => {setMode('signin'); setFormData({email: '', password: '', username: '', otp: ''});}}
