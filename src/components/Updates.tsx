@@ -231,7 +231,13 @@ export default function Updates() {
   );
 
   if (loading) {
-    return <div className="flex justify-center p-8">Loading updates...</div>;
+    return (
+      <div className="min-h-[200px]">
+        <div className="fixed top-0 left-0 right-0 z-50 h-1 overflow-hidden">
+          <div className="h-full w-1/3 animate-[progress_1.2s_ease-in-out_infinite] rounded-r bg-primary" />
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -266,11 +272,13 @@ export default function Updates() {
               placeholder="Title"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handlePost(); } }}
             />
             <Textarea
               placeholder="What's on your mind?"
               value={newContent}
               onChange={(e) => setNewContent(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlePost(); } }}
               rows={4}
             />
             <div className="flex gap-2">

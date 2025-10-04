@@ -241,6 +241,16 @@ export default function Auth() {
     }
   };
 
+  const handleEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (mode === 'signin') return handleSignIn();
+      if (mode === 'signup' || mode === 'forgot') return handleSendOTP();
+      if (mode === 'verify') return handleVerifyOTP();
+      if (mode === 'reset') return handleResetPassword();
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <Card className="w-full max-w-md">
@@ -264,6 +274,7 @@ export default function Auth() {
                     placeholder="Email or Username"
                     value={formData.username}
                     onChange={(e) => setFormData({...formData, username: e.target.value})}
+                    onKeyDown={handleEnter}
                     className="pl-10"
                   />
                   <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -275,6 +286,7 @@ export default function Auth() {
                     placeholder="Email"
                     value={formData.email}
                     onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    onKeyDown={handleEnter}
                     className="pl-10"
                   />
                   <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -301,6 +313,7 @@ export default function Auth() {
                     placeholder="Password"
                     value={formData.password}
                     onChange={(e) => setFormData({...formData, password: e.target.value})}
+                    onKeyDown={handleEnter}
                     className="pl-10 pr-10"
                   />
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -325,6 +338,7 @@ export default function Auth() {
                 placeholder="Enter 6-digit OTP"
                 value={formData.otp}
                 onChange={(e) => setFormData({...formData, otp: e.target.value})}
+                onKeyDown={handleEnter}
                 maxLength={6}
                 className="text-center text-lg tracking-widest"
               />

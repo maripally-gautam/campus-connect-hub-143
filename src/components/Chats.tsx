@@ -40,36 +40,49 @@ export default function Chats() {
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    fetchChats();
-  }, [user]);
+   useEffect(() => {
+     fetchChats();
+     // Subscribe to new private chats involving the user to refresh list in real-time
+     const chatsChannel = supabase
+       .channel('chats-inserts')
+       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chats' }, (payload) => {
+         const c = payload.new as any;
+         if (c.participant1_id === user?.id || c.participant2_id === user?.id || c.type === 'everyone') {
+           fetchChats();
+         }
+       })
+       .subscribe();
+     return () => {
+       supabase.removeChannel(chatsChannel);
+     }
+   }, [user]);
 
-  useEffect(() => {
-    if (selectedChat) {
-      fetchMessages(selectedChat.id);
-      
-      // Subscribe to new messages only for the selected chat
-      const subscription = supabase
-        .channel(`messages-${selectedChat.id}`)
-        .on('postgres_changes', 
-          { 
-            event: 'INSERT', 
-            schema: 'public', 
-            table: 'messages',
-            filter: `chat_id=eq.${selectedChat.id}`
-          }, 
-          (payload) => {
-            // Add new message directly instead of refetching all
-            setMessages(prev => [...prev, payload.new as Message]);
-          }
-        )
-        .subscribe();
+   useEffect(() => {
+     if (selectedChat) {
+       fetchMessages(selectedChat.id);
+       
+       // Subscribe to new messages only for the selected chat
+       const subscription = supabase
+         .channel(`messages-${selectedChat.id}`)
+         .on('postgres_changes', 
+           { 
+             event: 'INSERT', 
+             schema: 'public', 
+             table: 'messages',
+             filter: `chat_id=eq.${selectedChat.id}`
+           }, 
+           (payload) => {
+             const newMsg = payload.new as Message;
+             setMessages(prev => (prev.some(m => m.id === (newMsg as any).id) ? prev : [...prev, newMsg]));
+           }
+         )
+         .subscribe();
 
-      return () => {
-        supabase.removeChannel(subscription);
-      };
-    }
-  }, [selectedChat]);
+       return () => {
+         supabase.removeChannel(subscription);
+       };
+     }
+   }, [selectedChat]);
 
   useEffect(() => {
     scrollToBottom();
@@ -197,21 +210,18 @@ export default function Chats() {
 
       if (error) throw error;
 
-      // Get profiles for messages
-      const messagesWithProfiles = await Promise.all(
-        (data || []).map(async (message) => {
-          if (message.sender_id) {
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('username, is_deleted')
-              .eq('user_id', message.sender_id)
-              .single();
-            return { ...message, profiles: profile };
-          }
-          return message;
-        })
-      );
+      const msgs = data || [];
+      const senderIds = Array.from(new Set(msgs.map(m => m.sender_id).filter(Boolean))) as string[];
+      let profilesMap: Record<string, { username: string; is_deleted: boolean }> = {};
+      if (senderIds.length) {
+        const { data: profs } = await supabase
+          .from('profiles')
+          .select('user_id, username, is_deleted')
+          .in('user_id', senderIds);
+        (profs || []).forEach((p: any) => { profilesMap[p.user_id] = { username: p.username, is_deleted: p.is_deleted }; });
+      }
 
+      const messagesWithProfiles = msgs.map(m => m.sender_id ? { ...m, profiles: profilesMap[m.sender_id] } : m);
       setMessages(messagesWithProfiles);
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -300,9 +310,15 @@ export default function Chats() {
     }
   };
 
-  if (loading) {
-    return <div className="flex justify-center p-8">Loading chats...</div>;
-  }
+   if (loading) {
+     return (
+       <div className="min-h-[200px]">
+         <div className="fixed top-0 left-0 right-0 z-50 h-1 overflow-hidden">
+           <div className="h-full w-1/3 animate-[progress_1.2s_ease-in-out_infinite] rounded-r bg-primary" />
+         </div>
+       </div>
+     );
+   }
 
   return (
     <div className="h-[calc(100vh-180px)] flex gap-4">
@@ -383,7 +399,7 @@ export default function Chats() {
                   placeholder="Type a message..."
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSendMessage(); } }}
                 />
                 <Button onClick={handleSendMessage}>
                   <Send className="h-4 w-4" />

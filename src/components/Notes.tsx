@@ -26,6 +26,7 @@ interface Note {
   profiles: {
     name: string;
     username: string;
+    is_deleted: boolean;
   };
   user_liked?: boolean;
 }
@@ -309,7 +310,13 @@ export default function Notes() {
   });
 
   if (loading) {
-    return <div className="flex justify-center p-8">Loading notes...</div>;
+    return (
+      <div className="min-h-[200px]">
+        <div className="fixed top-0 left-0 right-0 z-50 h-1 overflow-hidden">
+          <div className="h-full w-1/3 animate-[progress_1.2s_ease-in-out_infinite] rounded-r bg-primary" />
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -463,15 +470,24 @@ export default function Notes() {
                   )}
                   
                   <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => window.open(note.file_url, '_blank')}
-                      className="flex items-center gap-2"
-                    >
-                      <Eye className="h-4 w-4" />
-                      View
-                    </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const a = document.createElement('a');
+                          a.href = note.file_url;
+                          a.target = '_blank';
+                          a.rel = 'noopener noreferrer';
+                          // Ensure no download attribute so browser decides inline vs external
+                          document.body.appendChild(a);
+                          a.click();
+                          document.body.removeChild(a);
+                        }}
+                        className="flex items-center gap-2"
+                      >
+                        <Eye className="h-4 w-4" />
+                        View
+                      </Button>
                     <Button
                       variant="outline"
                       size="sm"

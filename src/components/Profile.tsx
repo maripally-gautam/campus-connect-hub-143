@@ -207,37 +207,14 @@ export default function Profile() {
     }
 
     try {
-      // Mark profile as deleted first
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ is_deleted: true })
-        .eq('user_id', user?.id);
-
-      if (profileError) throw profileError;
-
-      // Delete todos
-      await supabase
-        .from('todos')
-        .delete()
-        .eq('user_id', user?.id);
-
-      // Delete messages (but keep chats)
-      await supabase
-        .from('messages')
-        .delete()
-        .eq('sender_id', user?.id);
-
-      // Delete the auth user using our secure function
-      const { error: deleteError } = await supabase.rpc('delete_user_account');
-
-      if (deleteError) throw deleteError;
+      const { error } = await supabase.functions.invoke('delete-account', { body: {} });
+      if (error) throw error;
 
       toast({ 
         title: 'Account Deleted', 
         description: 'Your account has been permanently deleted' 
       });
       
-      // Sign out
       await supabase.auth.signOut();
     } catch (error: any) {
       toast({ 
@@ -249,26 +226,8 @@ export default function Profile() {
   };
 
   const handlePasswordReset = async () => {
-    if (!user?.email) return;
-
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-        redirectTo: `${window.location.origin}/reset-password`
-      });
-
-      if (error) throw error;
-
-      toast({ 
-        title: 'Success', 
-        description: `Password reset link sent to ${user.email}!` 
-      });
-    } catch (error: any) {
-      console.log('Password reset error:', error);
-      toast({ 
-        title: 'Success', 
-        description: `Password reset link sent to ${user.email}!`
-      });
-    }
+    // Navigate to in-app change password page (old + new + confirm)
+    window.location.href = '/change-password';
   };
 
   const editContent = async (type: string, id: string, newContent: string) => {
@@ -337,7 +296,13 @@ export default function Profile() {
   };
 
   if (loading) {
-    return <div className="flex justify-center p-8">Loading profile...</div>;
+    return (
+      <div className="min-h-[200px]">
+        <div className="fixed top-0 left-0 right-0 z-50 h-1 overflow-hidden">
+          <div className="h-full w-1/3 animate-[progress_1.2s_ease-in-out_infinite] rounded-r bg-primary" />
+        </div>
+      </div>
+    );
   }
 
   if (!profile) {

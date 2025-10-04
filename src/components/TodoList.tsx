@@ -38,10 +38,14 @@ export default function TodoList() {
         { 
           event: '*', 
           schema: 'public', 
-          table: 'todos' 
+          table: 'todos',
+          filter: `user_id=eq.${user?.id}`
         }, 
-        () => {
+        (payload) => {
           fetchTodos();
+          if (payload.eventType === 'INSERT' && payload.new.reminder_time && Notification.permission === 'granted') {
+            scheduleNotification(payload.new.task, new Date(payload.new.reminder_time));
+          }
         }
       )
       .subscribe();
@@ -49,7 +53,7 @@ export default function TodoList() {
     return () => {
       supabase.removeChannel(subscription);
     };
-  }, []);
+  }, [user?.id]);
 
   const checkNotificationPermission = () => {
     if ('Notification' in window) {
@@ -97,7 +101,11 @@ export default function TodoList() {
 
     try {
       const reminderDate = reminderTime ? new Date(reminderTime).toISOString() : null;
-      
+
+      if (reminderDate && notificationPermission !== 'granted') {
+        toast({ title: 'Permission required', description: 'Notification permission is required to set reminders.', variant: 'destructive' });
+        return;
+      }
       const { error } = await supabase
         .from('todos')
         .insert([{
@@ -211,7 +219,13 @@ export default function TodoList() {
   };
 
   if (loading) {
-    return <div className="flex justify-center p-8">Loading tasks...</div>;
+    return (
+      <div className="min-h-[200px]">
+        <div className="fixed top-0 left-0 right-0 z-50 h-1 overflow-hidden">
+          <div className="h-full w-1/3 animate-[progress_1.2s_ease-in-out_infinite] rounded-r bg-primary" />
+        </div>
+      </div>
+    );
   }
 
   const activeTodos = todos.filter(todo => !todo.completed);
@@ -239,7 +253,7 @@ export default function TodoList() {
             placeholder="What do you need to do?"
             value={newTask}
             onChange={(e) => setNewTask(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && addTodo()}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTodo(); } }}
           />
           
           <div className="flex gap-4 items-center">
