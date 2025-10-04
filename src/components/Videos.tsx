@@ -23,6 +23,7 @@ interface Video {
   profiles: {
     name: string;
     username: string;
+    is_deleted: boolean;
   };
   user_liked?: boolean;
 }
@@ -79,7 +80,7 @@ export default function Videos() {
         .from('videos')
         .select(`
           *,
-          profiles!videos_user_id_fkey(name, username)
+          profiles!videos_user_id_fkey(name, username, is_deleted)
         `)
         .order('created_at', { ascending: false });
 
@@ -436,6 +437,9 @@ export default function Videos() {
                 <div className="space-y-3">
                   <div className="font-medium text-foreground">
                     {video.profiles.name || video.profiles.username}
+                    {video.profiles.is_deleted && (
+                      <span className="text-sm text-muted-foreground ml-2">(deleted user)</span>
+                    )}
                   </div>
                   
                   {video.title && video.title !== 'Video' && (

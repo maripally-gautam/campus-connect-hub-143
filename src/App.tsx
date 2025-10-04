@@ -16,7 +16,13 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   
   if (loading) {
-    return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
+    return (
+      <div className="min-h-screen">
+        <div className="fixed top-0 left-0 right-0 z-50 h-1 overflow-hidden">
+          <div className="h-full w-1/3 animate-[progress_1.2s_ease-in-out_infinite] rounded-r bg-primary" />
+        </div>
+      </div>
+    );
   }
   
   return user ? <>{children}</> : <Navigate to="/auth" replace />;
@@ -26,7 +32,13 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   
   if (loading) {
-    return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
+    return (
+      <div className="min-h-screen">
+        <div className="fixed top-0 left-0 right-0 z-50 h-1 overflow-hidden">
+          <div className="h-full w-1/3 animate-[progress_1.2s_ease-in-out_infinite] rounded-r bg-primary" />
+        </div>
+      </div>
+    );
   }
   
   return user ? <Navigate to="/dashboard" replace /> : <>{children}</>;

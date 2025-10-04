@@ -83,7 +83,7 @@ export default function Notes() {
         .from('notes')
         .select(`
           *,
-          profiles!notes_user_id_fkey(name, username)
+          profiles!notes_user_id_fkey(name, username, is_deleted)
         `)
         .order('created_at', { ascending: false });
 
@@ -457,6 +457,9 @@ export default function Notes() {
                 <div className="space-y-3">
                   <div className="font-medium text-foreground">
                     {note.profiles.name || note.profiles.username}
+                    {note.profiles.is_deleted && (
+                      <span className="text-sm text-muted-foreground ml-2">(deleted user)</span>
+                    )}
                   </div>
                   
                   <div className="text-sm text-muted-foreground">
