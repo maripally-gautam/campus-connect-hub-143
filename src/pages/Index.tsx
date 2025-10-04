@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 
 const Index = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+<div className="min-h-screen bg-transparent">
       {/* Header */}
       <header className="container mx-auto px-4 py-6">
         <div className="flex justify-between items-center">

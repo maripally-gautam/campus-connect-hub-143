@@ -3,6 +3,13 @@
   margin: 0 auto;
   padding: 2rem;
   text-align: center;
+  background: transparent !important; /* add this line */
+}
+
+
+body {
+  background: transparent !important;
+  margin: 0;
 }
 
 .logo {

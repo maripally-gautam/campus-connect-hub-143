@@ -1,3 +1,4 @@
+import StarfieldBackground from "./StarfieldBackground";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -45,6 +46,8 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 const App = () => (
+  <>
+    <StarfieldBackground />
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
@@ -79,6 +82,7 @@ const App = () => (
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
+</>
 );
 
 export default App;

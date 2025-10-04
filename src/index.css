@@ -11,8 +11,8 @@ All colors MUST be HSL.
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 220 13% 10%;         /* dark gray, like Tailwind's bg-gray-900 */
+  --card-foreground: 220 30% 98%; /* very light gray */
 
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
@@ -55,13 +55,17 @@ All colors MUST be HSL.
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
+  .my-text {
+  color: #ff0000;
+}
+
   .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
+    --card: 220 13% 10%;
+  --card-foreground: 220 30% 98%;
+  
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
 
@@ -100,8 +104,9 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
-  }
+  background: transparent !important;
+}
+
 }
 
 @keyframes progress {
