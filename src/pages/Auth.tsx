@@ -205,6 +205,7 @@ export default function Auth() {
       // Check if input is an email (contains @)
       if (!formData.username.includes('@')) {
         // It's a username, look up the email from the profiles table
+        const usernameInput = emailToUse;
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('email')
@@ -321,7 +322,7 @@ export default function Auth() {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="absolute right-1 top-1 h-8 w-8"
+                    className="absolute right-1 top-1 h-8  w-8"
                     onClick={() => setShowPassword(!showPassword)}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
