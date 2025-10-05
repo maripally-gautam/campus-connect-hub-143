@@ -170,7 +170,7 @@ export default function Auth() {
     try {
       const { error } = await supabase.functions.invoke('reset-password', {
         body: {
-          email: formData.email,
+          email: formData.email.trim(),
           newPassword: formData.password
         }
       });
@@ -200,26 +200,27 @@ export default function Auth() {
     setLoading(true);
 
     try {
-      let emailToUse = formData.username;
+      let emailToUse = formData.username.trim();
       
       // Check if input is an email (contains @)
-      if (!formData.username.includes('@')) {
-        // It's a username, look up the email from the profiles table
+      if (!emailToUse.includes('@')) {
+        // It's a username, look up the email from the profiles table (case-insensitive)
+        const usernameInput = emailToUse;
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('email')
-          .eq('username', formData.username)
+          .ilike('username', usernameInput)
           .maybeSingle();
 
         if (profileError) {
           throw new Error('Error looking up user');
         }
         
-        if (!profile || !profile.email) {
+        if (!profile?.email) {
           throw new Error('Username not found');
         }
 
-        emailToUse = profile.email;
+        emailToUse = profile.email.trim();
       }
 
       const { error } = await supabase.auth.signInWithPassword({

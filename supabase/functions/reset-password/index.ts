@@ -27,20 +27,47 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get user by email
-    const { data: { users }, error: getUserError } = await supabase.auth.admin.listUsers();
-    
-    if (getUserError) throw getUserError;
+    // Normalize inputs
+    const normalizedEmail = email.trim().toLowerCase();
 
-    const user = users.find(u => u.email === email);
-    
-    if (!user) {
+    // Try to find the user by email (case-insensitive), searching multiple pages just in case
+    let foundUser: { id: string } | null = null;
+    let page = 1;
+    const perPage = 200;
+
+    while (!foundUser) {
+      const { data: pageData, error: listErr } = await supabase.auth.admin.listUsers({ page, perPage } as any);
+      if (listErr) throw listErr;
+
+      const usersPage = pageData?.users ?? [];
+      foundUser = usersPage.find((u: any) => (u.email || '').toLowerCase() === normalizedEmail) || null;
+
+      // If fewer than perPage returned, we've reached the end
+      if (foundUser || usersPage.length < perPage) break;
+      page += 1;
+    }
+
+    // Fallback: try resolving user id from public.profiles by email
+    if (!foundUser) {
+      const { data: profileRow, error: profileErr } = await supabase
+        .from('profiles')
+        .select('user_id')
+        .ilike('email', email.trim())
+        .maybeSingle();
+
+      if (profileErr) throw profileErr;
+      if (profileRow?.user_id) {
+        foundUser = { id: profileRow.user_id };
+      }
+    }
+
+    if (!foundUser) {
       throw new Error('User not found');
     }
 
     // Update user password
     const { error: updateError } = await supabase.auth.admin.updateUserById(
-      user.id,
+      foundUser.id,
       { password: newPassword }
     );
 
