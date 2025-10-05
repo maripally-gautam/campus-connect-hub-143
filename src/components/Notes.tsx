@@ -455,7 +455,11 @@ export default function Notes() {
             <Card key={note.id}>
               <CardContent className="p-4">
                 <div className="space-y-3">
-                  <div className="font-medium text-foreground">
+                  <div className="font-semibold text-lg text-foreground">
+                    {note.title}
+                  </div>
+                  
+                  <div className="font-medium text-sm text-foreground">
                     {note.profiles.name || note.profiles.username}
                     {note.profiles.is_deleted && (
                       <span className="text-sm text-muted-foreground ml-2">(deleted user)</span>
@@ -476,16 +480,7 @@ export default function Notes() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => {
-                          const a = document.createElement('a');
-                          a.href = note.file_url;
-                          a.target = '_blank';
-                          a.rel = 'noopener noreferrer';
-                          // Ensure no download attribute so browser decides inline vs external
-                          document.body.appendChild(a);
-                          a.click();
-                          document.body.removeChild(a);
-                        }}
+                        onClick={() => window.open(note.file_url, '_blank', 'noopener,noreferrer')}
                         className="flex items-center gap-2"
                       >
                         <Eye className="h-4 w-4" />
