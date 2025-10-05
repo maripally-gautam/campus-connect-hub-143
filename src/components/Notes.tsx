@@ -332,7 +332,7 @@ export default function Notes() {
       {/* Filters */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="relative">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
           <Input
             placeholder="Search notes, subjects, users..."
             value={searchQuery}
@@ -375,14 +375,14 @@ export default function Notes() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
-                placeholder="Title (optional)"
+                placeholder="Title"
                 value={uploadData.title}
                 onChange={(e) => setUploadData({...uploadData, title: e.target.value})}
               />
               
               <Select value={uploadData.branch} onValueChange={(value) => setUploadData({...uploadData, branch: value})}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Branch (optional)" />
+                  <SelectValue placeholder="Branch" />
                 </SelectTrigger>
                 <SelectContent>
                   {branches.map(branch => (
@@ -393,7 +393,7 @@ export default function Notes() {
 
               <Select value={uploadData.semester} onValueChange={(value) => setUploadData({...uploadData, semester: value})}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Semester (optional)" />
+                  <SelectValue placeholder="Semester" />
                 </SelectTrigger>
                 <SelectContent>
                   {semesters.map(sem => (
@@ -403,14 +403,14 @@ export default function Notes() {
               </Select>
 
               <Input
-                placeholder="Subject (optional)"
+                placeholder="Subject"
                 value={uploadData.subject}
                 onChange={(e) => setUploadData({...uploadData, subject: e.target.value})}
               />
             </div>
 
             <Textarea
-              placeholder="Description (optional)"
+              placeholder="Description"
               value={uploadData.description}
               onChange={(e) => setUploadData({...uploadData, description: e.target.value})}
               rows={3}
