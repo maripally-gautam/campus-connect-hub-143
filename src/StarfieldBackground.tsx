@@ -91,7 +91,7 @@ sizes.push(Math.random() < 0.02 ? 2.5 : 0.5 + Math.random() * 0.35);
       }
       sizes.needsUpdate = true;
 
-      stars.rotation.y += 0.0003;
+      stars.rotation.y += 0.0008;
       renderer.render(scene, camera);
       requestAnimationFrame(animate);
     };

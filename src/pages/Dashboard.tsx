@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, FileText, Video, CheckSquare, MessageSquare, UserCircle, LogOut } from 'lucide-react';
+import { Users, GraduationCap, FileText, Video, CheckSquare, MessageSquare, UserCircle, LogOut } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import Updates from '@/components/Updates';
@@ -111,6 +111,7 @@ export default function Dashboard() {
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-8">
+              <GraduationCap className="h-8 w-8 text-primary drop-shadow-[0_0_10px_rgba(79,143,255,0.7)]" />
               <h2 className="text-xl font-bold text-primary">EduConnect</h2>
               <div className="hidden md:flex space-x-1">
                 {tabs.map((tab) => {
