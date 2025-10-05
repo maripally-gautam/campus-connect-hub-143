@@ -435,17 +435,21 @@ export default function Videos() {
             <Card key={video.id}>
               <CardContent className="p-4">
                 <div className="space-y-3">
-                  <div className="font-medium text-foreground">
+                  {/* <div className="font-semibold text-lg text-foreground">
+                    {video.title}
+                  </div> */}
+                  
+                  <div className="font-medium text-sm text-foreground">
                     {video.profiles.name || video.profiles.username}
                     {video.profiles.is_deleted && (
                       <span className="text-sm text-muted-foreground ml-2">(deleted user)</span>
                     )}
                   </div>
-                  
+                                    
                   {video.title && video.title !== 'Video' && (
                     <div className="font-medium text-foreground">{video.title}</div>
                   )}
-                  
+
                   <div className="text-sm text-muted-foreground">
                     {video.branch && `${video.branch} • `}
                     {video.semester && `Semester ${video.semester}`}

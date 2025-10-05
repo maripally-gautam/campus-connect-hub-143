@@ -35,30 +35,59 @@ serve(async (req) => {
     // Admin client to perform privileged operations (bypass RLS)
     const admin = createClient(supabaseUrl, serviceKey);
 
+    console.log('Starting account deletion for user:', userId);
+
     // Mark profile as deleted (keeps username visible with deleted flag)
     const { error: profileError } = await admin
       .from('profiles')
       .update({ is_deleted: true })
-      .eq('user_id', userId);
-    if (profileError) throw profileError;
+      .eq('user_id', userId)
+      .select()
+      .single();
+    if (profileError) {
+      console.error('Profile update error:', profileError);
+      throw profileError;
+    }
 
     // Delete user's todos
     const { error: todosError } = await admin
       .from('todos')
       .delete()
       .eq('user_id', userId);
-    if (todosError) throw todosError;
+    if (todosError) {
+      console.error('Todos delete error:', todosError);
+      throw todosError;
+    }
 
-    // Delete user's chat messages (keep chats and others' messages)
+    // Delete user's chat messages (sender_id = userId)
     const { error: messagesError } = await admin
       .from('messages')
       .delete()
       .eq('sender_id', userId);
-    if (messagesError) throw messagesError;
+    if (messagesError) {
+      console.error('Messages delete error:', messagesError);
+      throw messagesError;
+    }
 
+    // Delete chats where user is a participant (participant1 or participant2)
+    const { error: chatsError } = await admin
+      .from('chats')
+      .delete()
+      .or(`participant1_id.eq.${userId},participant2_id.eq.${userId}`);
+    if (chatsError) {
+      console.error('Chats delete error:', chatsError);
+      throw chatsError;
+    }
+
+    console.log('Deleting auth user:', userId);
     // Finally delete the auth user
     const { error: deleteUserError } = await admin.auth.admin.deleteUser(userId);
-    if (deleteUserError) throw deleteUserError;
+    if (deleteUserError) {
+      console.error('Auth user delete error:', deleteUserError);
+      throw deleteUserError;
+    }
+
+    console.log('Account deletion completed successfully');
 
     return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
