@@ -269,7 +269,7 @@ export default function Auth() {
           {(mode === 'signin' || mode === 'signup' || mode === 'forgot') && (
             <>
               {mode === 'signin' ? (
-                <div className="space-y-2 relative">
+                <div className="space-y-0.4 relative">
                   <Input
                     type="text"
                     placeholder="Email or Username"
@@ -281,7 +281,7 @@ export default function Auth() {
                   <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 </div>
               ) : (
-                <div className="space-y-2 relative">
+                <div className="space-y-0.4 relative">
                   <Input
                     type="email"
                     placeholder="Email"
@@ -295,7 +295,7 @@ export default function Auth() {
               )}
 
               {mode === 'signup' && (
-                <div className="space-y-2 relative">
+                <div className="space-y-0.4 relative">
                   <Input
                     type="text"
                     placeholder="Username"
@@ -308,7 +308,7 @@ export default function Auth() {
               )}
 
               {(mode === 'signin' || mode === 'signup') && (
-                <div className="space-y-2 relative">
+                <div className="space-y-0.4 relative">
                   <Input
                     type={showPassword ? 'text' : 'password'}
                     placeholder="Password"
