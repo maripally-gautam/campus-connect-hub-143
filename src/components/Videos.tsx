@@ -24,7 +24,7 @@ interface Video {
     name: string;
     username: string;
     is_deleted: boolean;
-  };
+  } | null;
   user_liked?: boolean;
 }
 
@@ -53,55 +53,55 @@ export default function Videos() {
 
   useEffect(() => {
     fetchVideos();
-
-    // Subscribe to real-time updates
     const subscription = supabase
       .channel('videos-changes')
       .on('postgres_changes', 
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'videos' 
-        }, 
-        () => {
-          fetchVideos();
-        }
+        { event: '*', schema: 'public', table: 'videos' }, 
+        () => { fetchVideos(); }
       )
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(subscription);
-    };
+    return () => { supabase.removeChannel(subscription); };
   }, []);
 
   const fetchVideos = async () => {
     try {
       const { data, error } = await supabase
         .from('videos')
-        .select(`
-          *,
-          profiles!videos_user_id_fkey(name, username, is_deleted)
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      // Check which videos the current user has liked
-      if (user && data) {
+      // Get all unique user_ids
+      const userIds = Array.from(new Set((data || []).filter(v => v.user_id).map(v => v.user_id)));
+      let profilesMap: Record<string, any> = {};
+      if (userIds.length) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id, name, username, is_deleted')
+          .in('user_id', userIds);
+        (profiles || []).forEach(p => { profilesMap[p.user_id] = p; });
+      }
+
+      const videosWithProfiles = (data || []).map(video => ({
+        ...video,
+        profiles: video.user_id ? profilesMap[video.user_id] || null : null
+      }));
+
+      // Check likes
+      if (user && videosWithProfiles.length) {
         const { data: userLikes } = await supabase
           .from('likes')
           .select('content_id')
           .eq('user_id', user.id)
           .eq('content_type', 'video');
-
         const likedIds = new Set(userLikes?.map(like => like.content_id) || []);
-        
-        setVideos(data.map(video => ({
+        setVideos(videosWithProfiles.map(video => ({
           ...video,
           user_liked: likedIds.has(video.id)
         })));
       } else {
-        setVideos(data || []);
+        setVideos(videosWithProfiles);
       }
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -110,16 +110,10 @@ export default function Videos() {
     }
   };
 
-  const addLinkField = () => {
-    setVideoLinks([...videoLinks, '']);
-  };
-
+  const addLinkField = () => setVideoLinks([...videoLinks, '']);
   const removeLinkField = (index: number) => {
-    if (videoLinks.length > 1) {
-      setVideoLinks(videoLinks.filter((_, i) => i !== index));
-    }
+    if (videoLinks.length > 1) setVideoLinks(videoLinks.filter((_, i) => i !== index));
   };
-
   const updateLink = (index: number, value: string) => {
     const newLinks = [...videoLinks];
     newLinks[index] = value;
@@ -127,15 +121,11 @@ export default function Videos() {
   };
 
   const handleUpload = async () => {
-    // Filter out empty links
     const validLinks = videoLinks.filter(link => link.trim());
-    
     if (validLinks.length === 0) {
       toast({ title: 'Error', description: 'Please enter at least one video link', variant: 'destructive' });
       return;
     }
-
-    // Check if at least one field is filled
     const hasRequiredData = uploadData.title || uploadData.branch || uploadData.semester || uploadData.subject || uploadData.description;
     if (!hasRequiredData) {
       toast({ 
@@ -145,11 +135,8 @@ export default function Videos() {
       });
       return;
     }
-
     setUploading(true);
-
     try {
-      // Insert each video link as a separate entry
       const videoEntries = validLinks.map(link => ({
         title: uploadData.title || 'Video',
         branch: uploadData.branch || null,
@@ -163,10 +150,7 @@ export default function Videos() {
         user_id: user?.id
       }));
 
-      const { error } = await supabase
-        .from('videos')
-        .insert(videoEntries);
-
+      const { error } = await supabase.from('videos').insert(videoEntries);
       if (error) throw error;
 
       setUploadData({ title: '', branch: '', semester: '', subject: '', description: '' });
@@ -182,56 +166,24 @@ export default function Videos() {
 
   const handleLike = async (videoId: string, isLiked: boolean) => {
     if (!user) return;
-
-    // Optimistic update
     setVideos(prevVideos => prevVideos.map(video => 
       video.id === videoId 
-        ? { 
-            ...video, 
-            user_liked: !isLiked, 
-            likes_count: isLiked ? video.likes_count - 1 : video.likes_count + 1 
-          } 
+        ? { ...video, user_liked: !isLiked, likes_count: isLiked ? video.likes_count - 1 : video.likes_count + 1 }
         : video
     ));
 
     try {
       if (isLiked) {
-        // Unlike
-        await supabase
-          .from('likes')
-          .delete()
-          .eq('user_id', user.id)
-          .eq('content_type', 'video')
-          .eq('content_id', videoId);
-
-        await supabase
-          .from('videos')
-          .update({ likes_count: videos.find(v => v.id === videoId)!.likes_count - 1 })
-          .eq('id', videoId);
+        await supabase.from('likes').delete().eq('user_id', user.id).eq('content_type', 'video').eq('content_id', videoId);
+        await supabase.from('videos').update({ likes_count: videos.find(v => v.id === videoId)!.likes_count - 1 }).eq('id', videoId);
       } else {
-        // Like
-        await supabase
-          .from('likes')
-          .insert([{
-            user_id: user.id,
-            content_type: 'video',
-            content_id: videoId
-          }]);
-
-        await supabase
-          .from('videos')
-          .update({ likes_count: videos.find(v => v.id === videoId)!.likes_count + 1 })
-          .eq('id', videoId);
+        await supabase.from('likes').insert([{ user_id: user.id, content_type: 'video', content_id: videoId }]);
+        await supabase.from('videos').update({ likes_count: videos.find(v => v.id === videoId)!.likes_count + 1 }).eq('id', videoId);
       }
     } catch (error: any) {
-      // Revert on error
       setVideos(prevVideos => prevVideos.map(video => 
         video.id === videoId 
-          ? { 
-              ...video, 
-              user_liked: isLiked, 
-              likes_count: isLiked ? video.likes_count + 1 : video.likes_count - 1 
-            } 
+          ? { ...video, user_liked: isLiked, likes_count: isLiked ? video.likes_count + 1 : video.likes_count - 1 }
           : video
       ));
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -240,15 +192,9 @@ export default function Videos() {
 
   const handleDelete = async (videoId: string) => {
     if (!confirm('Are you sure you want to delete this video link?')) return;
-
     try {
-      const { error } = await supabase
-        .from('videos')
-        .delete()
-        .eq('id', videoId);
-
+      const { error } = await supabase.from('videos').delete().eq('id', videoId);
       if (error) throw error;
-
       toast({ title: 'Success', description: 'Video link deleted successfully!' });
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -262,12 +208,11 @@ export default function Videos() {
       video.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       video.branch?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       video.semester?.toString().includes(searchQuery) ||
-      video.profiles.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      video.profiles.username.toLowerCase().includes(searchQuery.toLowerCase());
+      video.profiles?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      video.profiles?.username?.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesBranch = !filterBranch || filterBranch === 'all' || video.branch === filterBranch;
     const matchesSemester = !filterSemester || filterSemester === 'all' || video.semester?.toString() === filterSemester;
-
     return matchesSearch && matchesBranch && matchesSemester;
   });
 
@@ -435,13 +380,9 @@ export default function Videos() {
             <Card key={video.id}>
               <CardContent className="p-4">
                 <div className="space-y-3">
-                  {/* <div className="font-semibold text-lg text-foreground">
-                    {video.title}
-                  </div> */}
-                  
                   <div className="font-medium text-sm text-foreground">
-                    {video.profiles.name || video.profiles.username}
-                    {video.profiles.is_deleted && (
+                    {video.profiles?.name || video.profiles?.username || "Deleted User"}
+                    {video.profiles?.is_deleted && (
                       <span className="text-sm text-muted-foreground ml-2">(deleted user)</span>
                     )}
                   </div>
@@ -492,7 +433,6 @@ export default function Videos() {
                         </Button>
                       )}
                     </div>
-                    
                     <span>
                       {new Date(video.created_at).toLocaleDateString('en-GB')}
                     </span>

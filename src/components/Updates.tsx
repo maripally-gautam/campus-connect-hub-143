@@ -19,7 +19,7 @@ interface Update {
   profiles: {
     username: string;
     is_deleted: boolean;
-  };
+  } | null;
   user_liked?: boolean;
 }
 
@@ -37,22 +37,13 @@ export default function Updates() {
 
   useEffect(() => {
     fetchUpdates();
-
-    // Subscribe to real-time updates
     const subscription = supabase
       .channel('updates-changes')
-      .on('postgres_changes', 
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'updates' 
-        }, 
-        () => {
-          fetchUpdates();
-        }
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'updates' },
+        () => fetchUpdates()
       )
       .subscribe();
-
     return () => {
       supabase.removeChannel(subscription);
     };
@@ -60,32 +51,47 @@ export default function Updates() {
 
   const fetchUpdates = async () => {
     try {
+      // 1. Fetch all updates
       const { data, error } = await supabase
         .from('updates')
-        .select(`
-          *,
-          profiles!updates_user_id_fkey(username, is_deleted)
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      // Check which updates the current user has liked
-      if (user && data) {
+      // 2. Get all user_ids
+      const userIds = Array.from(new Set((data || []).filter(u => u.user_id).map(u => u.user_id)));
+
+      // 3. Fetch profiles for those user_ids
+      let profilesMap: Record<string, any> = {};
+      if (userIds.length) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id, username, is_deleted')
+          .in('user_id', userIds);
+        (profiles || []).forEach(p => { profilesMap[p.user_id] = p; });
+      }
+
+      // 4. Attach profiles to updates
+      const updatesWithProfiles = (data || []).map(update => ({
+        ...update,
+        profiles: update.user_id ? profilesMap[update.user_id] || null : null
+      }));
+
+      // 5. Check liked updates for current user
+      if (user && updatesWithProfiles.length) {
         const { data: userLikes } = await supabase
           .from('likes')
           .select('content_id')
           .eq('user_id', user.id)
           .eq('content_type', 'update');
-
         const likedIds = new Set(userLikes?.map(like => like.content_id) || []);
-        
-        setUpdates(data.map(update => ({
+        setUpdates(updatesWithProfiles.map(update => ({
           ...update,
           user_liked: likedIds.has(update.id)
         })));
       } else {
-        setUpdates(data || []);
+        setUpdates(updatesWithProfiles);
       }
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -99,7 +105,6 @@ export default function Updates() {
       toast({ title: 'Error', description: 'Title and content cannot be empty', variant: 'destructive' });
       return;
     }
-
     try {
       const { error } = await supabase
         .from('updates')
@@ -108,9 +113,7 @@ export default function Updates() {
           content: newContent,
           user_id: user?.id
         }]);
-
       if (error) throw error;
-
       setNewTitle('');
       setNewContent('');
       setShowNewPost(false);
@@ -122,34 +125,24 @@ export default function Updates() {
 
   const handleLike = async (updateId: string, isLiked: boolean) => {
     if (!user) return;
-
-    // Optimistic update
-    setUpdates(prevUpdates => prevUpdates.map(update => 
-      update.id === updateId 
-        ? { 
-            ...update, 
-            user_liked: !isLiked, 
-            likes_count: isLiked ? update.likes_count - 1 : update.likes_count + 1 
-          } 
+    setUpdates(prevUpdates => prevUpdates.map(update =>
+      update.id === updateId
+        ? { ...update, user_liked: !isLiked, likes_count: isLiked ? update.likes_count - 1 : update.likes_count + 1 }
         : update
     ));
-
     try {
       if (isLiked) {
-        // Unlike
         await supabase
           .from('likes')
           .delete()
           .eq('user_id', user.id)
           .eq('content_type', 'update')
           .eq('content_id', updateId);
-
         await supabase
           .from('updates')
           .update({ likes_count: updates.find(u => u.id === updateId)!.likes_count - 1 })
           .eq('id', updateId);
       } else {
-        // Like
         await supabase
           .from('likes')
           .insert([{
@@ -157,21 +150,15 @@ export default function Updates() {
             content_type: 'update',
             content_id: updateId
           }]);
-
         await supabase
           .from('updates')
           .update({ likes_count: updates.find(u => u.id === updateId)!.likes_count + 1 })
           .eq('id', updateId);
       }
     } catch (error: any) {
-      // Revert on error
-      setUpdates(prevUpdates => prevUpdates.map(update => 
-        update.id === updateId 
-          ? { 
-              ...update, 
-              user_liked: isLiked, 
-              likes_count: isLiked ? update.likes_count + 1 : update.likes_count - 1 
-            } 
+      setUpdates(prevUpdates => prevUpdates.map(update =>
+        update.id === updateId
+          ? { ...update, user_liked: isLiked, likes_count: isLiked ? update.likes_count + 1 : update.likes_count - 1 }
           : update
       ));
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -183,15 +170,12 @@ export default function Updates() {
       toast({ title: 'Error', description: 'Title and content cannot be empty', variant: 'destructive' });
       return;
     }
-
     try {
       const { error } = await supabase
         .from('updates')
         .update({ title: editTitle, content: editContent })
         .eq('id', updateId);
-
       if (error) throw error;
-
       setEditingId(null);
       setEditTitle('');
       setEditContent('');
@@ -203,15 +187,12 @@ export default function Updates() {
 
   const handleDelete = async (updateId: string) => {
     if (!confirm('Are you sure you want to delete this update?')) return;
-
     try {
       const { error } = await supabase
         .from('updates')
         .delete()
         .eq('id', updateId);
-
       if (error) throw error;
-
       toast({ title: 'Success', description: 'Update deleted successfully!' });
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -224,10 +205,10 @@ export default function Updates() {
     return hoursSincePost < 24;
   };
 
-  const filteredUpdates = updates.filter(update => 
+  const filteredUpdates = updates.filter(update =>
     update.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    update.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    update.profiles.username.toLowerCase().includes(searchQuery.toLowerCase())
+    update.content?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    update.profiles?.username?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   if (loading) {
@@ -283,7 +264,7 @@ export default function Updates() {
             />
             <div className="flex gap-2">
               <Button onClick={handlePost}>Post Update</Button>
-              <Button variant="outline" onClick={() => {setShowNewPost(false); setNewTitle(''); setNewContent('');}}>
+              <Button variant="outline" onClick={() => { setShowNewPost(false); setNewTitle(''); setNewContent(''); }}>
                 Cancel
               </Button>
             </div>
@@ -305,12 +286,11 @@ export default function Updates() {
               <CardContent className="p-4">
                 <div className="space-y-3">
                   <div className="font-medium text-foreground">
-                    {update.profiles.username}
-                    {update.profiles.is_deleted && (
+                    {update.profiles?.username || 'Deleted User'}
+                    {update.profiles?.is_deleted && (
                       <span className="text-sm text-muted-foreground ml-2">(deleted user)</span>
                     )}
                   </div>
-                  
                   {editingId === update.id ? (
                     <div className="space-y-2">
                       <Input
@@ -327,10 +307,10 @@ export default function Updates() {
                         <Button size="sm" onClick={() => handleEdit(update.id)}>
                           Save
                         </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          onClick={() => {setEditingId(null); setEditTitle(''); setEditContent('');}}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => { setEditingId(null); setEditTitle(''); setEditContent(''); }}
                         >
                           Cancel
                         </Button>
@@ -344,7 +324,7 @@ export default function Updates() {
                       </div>
                     </>
                   )}
-                  
+
                   <div className="flex justify-between items-center text-sm text-muted-foreground">
                     <div className="flex items-center gap-4">
                       <Button
@@ -356,7 +336,7 @@ export default function Updates() {
                         <Heart className={`h-4 w-4 ${update.user_liked ? 'fill-current' : ''}`} />
                         {update.likes_count}
                       </Button>
-                      
+
                       {update.user_id === user?.id && (
                         <div className="flex gap-1">
                           {canEdit(update) && (
@@ -382,7 +362,6 @@ export default function Updates() {
                         </div>
                       )}
                     </div>
-                    
                     <span>
                       {new Date(update.created_at).toLocaleDateString('en-GB')}
                     </span>

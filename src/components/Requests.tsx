@@ -19,7 +19,7 @@ interface Request {
   profiles: {
     username: string;
     is_deleted: boolean;
-  };
+  } | null;
   user_liked?: boolean;
 }
 
@@ -41,12 +41,12 @@ export default function Requests() {
     // Subscribe to real-time updates
     const subscription = supabase
       .channel('requests-changes')
-      .on('postgres_changes', 
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'requests' 
-        }, 
+      .on('postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'requests'
+        },
         () => {
           fetchRequests();
         }
@@ -60,32 +60,47 @@ export default function Requests() {
 
   const fetchRequests = async () => {
     try {
+      // 1. Fetch all requests
       const { data, error } = await supabase
         .from('requests')
-        .select(`
-          *,
-          profiles!requests_user_id_fkey(username, is_deleted)
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      // Check which requests the current user has liked
-      if (user && data) {
+      // 2. Get all user_ids
+      const userIds = Array.from(new Set((data || []).filter(r => r.user_id).map(r => r.user_id)));
+
+      // 3. Fetch profiles for those user_ids
+      let profilesMap: Record<string, any> = {};
+      if (userIds.length) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id, username, is_deleted')
+          .in('user_id', userIds);
+        (profiles || []).forEach(p => { profilesMap[p.user_id] = p; });
+      }
+
+      // 4. Attach profiles to requests
+      const requestsWithProfiles = (data || []).map(request => ({
+        ...request,
+        profiles: request.user_id ? profilesMap[request.user_id] || null : null
+      }));
+
+      // 5. Check liked requests for current user
+      if (user && requestsWithProfiles.length) {
         const { data: userLikes } = await supabase
           .from('likes')
           .select('content_id')
           .eq('user_id', user.id)
           .eq('content_type', 'request');
-
         const likedIds = new Set(userLikes?.map(like => like.content_id) || []);
-        
-        setRequests(data.map(request => ({
+        setRequests(requestsWithProfiles.map(request => ({
           ...request,
           user_liked: likedIds.has(request.id)
         })));
       } else {
-        setRequests(data || []);
+        setRequests(requestsWithProfiles);
       }
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -99,7 +114,6 @@ export default function Requests() {
       toast({ title: 'Error', description: 'Title and content cannot be empty', variant: 'destructive' });
       return;
     }
-
     try {
       const { error } = await supabase
         .from('requests')
@@ -108,9 +122,7 @@ export default function Requests() {
           content: newContent,
           user_id: user?.id
         }]);
-
       if (error) throw error;
-
       setNewTitle('');
       setNewContent('');
       setShowNewPost(false);
@@ -122,34 +134,28 @@ export default function Requests() {
 
   const handleLike = async (requestId: string, isLiked: boolean) => {
     if (!user) return;
-
-    // Optimistic update
-    setRequests(prevRequests => prevRequests.map(request => 
-      request.id === requestId 
-        ? { 
-            ...request, 
-            user_liked: !isLiked, 
-            likes_count: isLiked ? request.likes_count - 1 : request.likes_count + 1 
-          } 
+    setRequests(prevRequests => prevRequests.map(request =>
+      request.id === requestId
+        ? {
+          ...request,
+          user_liked: !isLiked,
+          likes_count: isLiked ? request.likes_count - 1 : request.likes_count + 1
+        }
         : request
     ));
-
     try {
       if (isLiked) {
-        // Unlike
         await supabase
           .from('likes')
           .delete()
           .eq('user_id', user.id)
           .eq('content_type', 'request')
           .eq('content_id', requestId);
-
         await supabase
           .from('requests')
           .update({ likes_count: requests.find(r => r.id === requestId)!.likes_count - 1 })
           .eq('id', requestId);
       } else {
-        // Like
         await supabase
           .from('likes')
           .insert([{
@@ -157,21 +163,19 @@ export default function Requests() {
             content_type: 'request',
             content_id: requestId
           }]);
-
         await supabase
           .from('requests')
           .update({ likes_count: requests.find(r => r.id === requestId)!.likes_count + 1 })
           .eq('id', requestId);
       }
     } catch (error: any) {
-      // Revert on error
-      setRequests(prevRequests => prevRequests.map(request => 
-        request.id === requestId 
-          ? { 
-              ...request, 
-              user_liked: isLiked, 
-              likes_count: isLiked ? request.likes_count + 1 : request.likes_count - 1 
-            } 
+      setRequests(prevRequests => prevRequests.map(request =>
+        request.id === requestId
+          ? {
+            ...request,
+            user_liked: isLiked,
+            likes_count: isLiked ? request.likes_count + 1 : request.likes_count - 1
+          }
           : request
       ));
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -183,15 +187,12 @@ export default function Requests() {
       toast({ title: 'Error', description: 'Title and content cannot be empty', variant: 'destructive' });
       return;
     }
-
     try {
       const { error } = await supabase
         .from('requests')
         .update({ title: editTitle, content: editContent })
         .eq('id', requestId);
-
       if (error) throw error;
-
       setEditingId(null);
       setEditTitle('');
       setEditContent('');
@@ -203,15 +204,12 @@ export default function Requests() {
 
   const handleDelete = async (requestId: string) => {
     if (!confirm('Are you sure you want to delete this request?')) return;
-
     try {
       const { error } = await supabase
         .from('requests')
         .delete()
         .eq('id', requestId);
-
       if (error) throw error;
-
       toast({ title: 'Success', description: 'Request deleted successfully!' });
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -224,10 +222,10 @@ export default function Requests() {
     return hoursSincePost < 24;
   };
 
-  const filteredRequests = requests.filter(request => 
+  const filteredRequests = requests.filter(request =>
     request.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    request.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    request.profiles.username.toLowerCase().includes(searchQuery.toLowerCase())
+    request.content?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    request.profiles?.username?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   if (loading) {
@@ -283,7 +281,7 @@ export default function Requests() {
             />
             <div className="flex gap-2">
               <Button onClick={handlePost}>Post Request</Button>
-              <Button variant="outline" onClick={() => {setShowNewPost(false); setNewTitle(''); setNewContent('');}}>
+              <Button variant="outline" onClick={() => { setShowNewPost(false); setNewTitle(''); setNewContent(''); }}>
                 Cancel
               </Button>
             </div>
@@ -305,12 +303,11 @@ export default function Requests() {
               <CardContent className="p-4">
                 <div className="space-y-3">
                   <div className="font-medium text-foreground">
-                    {request.profiles.username}
-                    {request.profiles.is_deleted && (
+                    {request.profiles?.username || 'Deleted User'}
+                    {request.profiles?.is_deleted &&
                       <span className="text-sm text-muted-foreground ml-2">(deleted user)</span>
-                    )}
+                    }
                   </div>
-                  
                   {editingId === request.id ? (
                     <div className="space-y-2">
                       <Input
@@ -327,10 +324,10 @@ export default function Requests() {
                         <Button size="sm" onClick={() => handleEdit(request.id)}>
                           Save
                         </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          onClick={() => {setEditingId(null); setEditTitle(''); setEditContent('');}}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => { setEditingId(null); setEditTitle(''); setEditContent(''); }}
                         >
                           Cancel
                         </Button>
@@ -344,7 +341,7 @@ export default function Requests() {
                       </div>
                     </>
                   )}
-                  
+
                   <div className="flex justify-between items-center text-sm text-muted-foreground">
                     <div className="flex items-center gap-4">
                       <Button
@@ -356,7 +353,7 @@ export default function Requests() {
                         <Heart className={`h-4 w-4 ${request.user_liked ? 'fill-current' : ''}`} />
                         {request.likes_count}
                       </Button>
-                      
+
                       {request.user_id === user?.id && (
                         <div className="flex gap-1">
                           {canEdit(request) && (
@@ -382,7 +379,6 @@ export default function Requests() {
                         </div>
                       )}
                     </div>
-                    
                     <span>
                       {new Date(request.created_at).toLocaleDateString('en-GB')}
                     </span>

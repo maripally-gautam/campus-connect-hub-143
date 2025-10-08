@@ -22,12 +22,12 @@ interface Note {
   file_size: number;
   likes_count: number;
   created_at: string;
-  user_id: string;
+  user_id: string | null;
   profiles: {
     name: string;
     username: string;
     is_deleted: boolean;
-  };
+  } | null;
   user_liked?: boolean;
 }
 
@@ -81,16 +81,29 @@ export default function Notes() {
     try {
       const { data, error } = await supabase
         .from('notes')
-        .select(`
-          *,
-          profiles!notes_user_id_fkey(name, username, is_deleted)
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
+      // Manually fetch profiles for notes that have user_id
+      const userIds = Array.from(new Set(data?.filter(n => n.user_id).map(n => n.user_id))) as string[];
+      let profilesMap: Record<string, any> = {};
+      if (userIds.length) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id, name, username, is_deleted')
+          .in('user_id', userIds);
+        (profiles || []).forEach(p => { profilesMap[p.user_id] = p; });
+      }
+
+      const notesWithProfiles = (data || []).map(note => ({
+        ...note,
+        profiles: note.user_id ? profilesMap[note.user_id] : null
+      }));
+
       // Check which notes the current user has liked
-      if (user && data) {
+      if (user && notesWithProfiles.length) {
         const { data: userLikes } = await supabase
           .from('likes')
           .select('content_id')
@@ -99,12 +112,12 @@ export default function Notes() {
 
         const likedIds = new Set(userLikes?.map(like => like.content_id) || []);
         
-        setNotes(data.map(note => ({
+        setNotes(notesWithProfiles.map(note => ({
           ...note,
           user_liked: likedIds.has(note.id)
         })));
       } else {
-        setNotes(data || []);
+        setNotes(notesWithProfiles);
       }
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -300,8 +313,8 @@ export default function Notes() {
       note.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       note.subject?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       note.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      note.profiles.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      note.profiles.username.toLowerCase().includes(searchQuery.toLowerCase());
+      note.profiles?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      note.profiles?.username?.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesBranch = !filterBranch || filterBranch === 'all' || note.branch === filterBranch;
     const matchesSemester = !filterSemester || filterSemester === 'all' || note.semester?.toString() === filterSemester;
@@ -460,8 +473,8 @@ export default function Notes() {
                   </div> */}
                   
                   <div className="font-medium text-sm text-foreground">
-                    {note.profiles.name || note.profiles.username}
-                    {note.profiles.is_deleted && (
+                    {note.profiles?.name || note.profiles?.username || 'Deleted User'}
+                    {note.profiles?.is_deleted && (
                       <span className="text-sm text-muted-foreground ml-2">(deleted user)</span>
                     )}
                   </div>
